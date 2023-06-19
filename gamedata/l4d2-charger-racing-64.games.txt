@@ -1,0 +1,16 @@
+"Games"
+{
+	"left4dead2"
+	{
+		"Signatures"
+		{
+			"CTerrorPlayer::OnPummelEnded"
+			{
+				"library"		"server"
+				"linux"			"@_ZN13CTerrorPlayer13OnPummelEndedEbPS_"
+				"windows"		"\x55\x8B\xEC\x8B\x2A\x2A\x2A\x2A\x2A\x53\x56\x8B\xF1\x8B\x2A\x2A\x2A\x2A\x2A\x57"
+				/* 55 8B EC 8B ? ? ? ? ? 53 56 8B F1 8B ? ? ? ? ? 57 */
+			}
+		}
+	}
+}

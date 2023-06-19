@@ -1,0 +1,83 @@
+"Phrases"
+{
+	"voted for track"
+	{
+		"#format"	"{1:N},{2:s},{3:s}"
+		"en"	"{1} has voted {2} for the track: {3}"
+	}
+
+	"voted for next track"
+	{
+		"#format"	"{1:N},{2:s}"
+		"en"	"{1} has voted {2} for the next track."
+	}
+
+	"vote has ended"
+	{
+		"en"	"The vote has ended."
+	}
+
+	"vote results track selected"
+	{
+		"#format"	"{1:s},{2:i},{3:i}"
+		"en"	"The track {1} has been selected. [{2} / {3} total]"
+	}
+
+	"vote results track not selected"
+	{
+		"#format"	"{1:s},{2:i},{3:i}"
+		"en"	"The track {1} has NOT been selected. [{2} / {3} total]"
+	}
+
+	"race starting in print"
+	{
+		"#format"	"{1:i}"
+		"en"	"Starting in {1}..."
+	}
+
+	"race starting in center"
+	{
+		"#format"	"{1:i}"
+		"en"	"Starting in {1}..."
+	}
+
+	"race starting go print"
+	{
+		"en"	"GO!"
+	}
+
+	"race starting go center"
+	{
+		"en"	"GO!"
+	}
+
+	"race times up print"
+	{
+		"en"	"Time's up!"
+	}
+
+	"race times up center"
+	{
+		"en"	"Time's up!"
+	}
+
+	"editor enter a track name"
+	{
+		"en"	"Enter a name for your track:"
+	}
+
+	"editor track save"
+	{
+		"en"	"Track has been saved."
+	}
+
+	"survivor bot created"
+	{
+		"en"	"Survivor has been created."
+	}
+
+	"survivor bot failed"
+	{
+		"en"	"Failed to spawn survivor."
+	}
+}

@@ -12,7 +12,7 @@
             },
 
             "windows":{
-                 "command": "${workspaceFolder}\\scripting\\spcomp.exe",
+                 "command": "${workspaceFolder}\\scripting\\spcomp64.exe",
             },
 
             "args": [
@@ -23,6 +23,7 @@
                 "-i${workspaceFolder}\\scripting",
                 "-i${workspaceFolder}\\include",
                 "-o${workspaceFolder}\\plugins\\${fileBasenameNoExtension}.smx"
+                //"-oD:\\servers\\left4dead2\\left4dead2\\addons\\sourcemod\\plugins\\${fileBasenameNoExtension}.smx"
             ],
 
             "group": {
