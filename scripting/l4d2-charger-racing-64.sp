@@ -9,6 +9,7 @@
 #include <left4dhooks>
 
 //Defines
+#define PLUGIN_TAG "[Racing] "
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
 #define NO_TRACK -1 	//This is the corresponding index for data to know that this track either doesn't exist, is invalid, or is not set.
 #define NO_NODE -1 		//This is the corresponding index for data to know that this node either doesn't exist, is invalid, or is not set.
@@ -24,9 +25,20 @@
 
 //ConVars
 ConVar convar_Enabled;
+ConVar convar_Strafing;
+ConVar convar_Strafing_Scale;
+ConVar convar_Jumping;
+ConVar convar_Jumping_Scale;
+ConVar convar_Pathing;
+ConVar convar_Pathing_Width;
+ConVar convar_Preparation_Timer;
+ConVar convar_Racing_Countdown;
+ConVar convar_Racing_Timer;
+ConVar convar_Charging_Particle;
 
 //General
 char g_TracksPath[PLATFORM_MAX_PATH];
+bool g_LateLoad;
 
 //Difficulties for tracks are just tags to help tell players how easy or hard this track is.
 enum Difficulty {
@@ -98,14 +110,16 @@ enum struct GameState {
 	Handle ticker;	//The ticker to handle the race algorithm as a while.
 
 	void Preparing() {
+		PrintToServer("Preparing...");
 		this.status = STATUS_PREPARING;
+		this.timer = convar_Preparation_Timer.FloatValue;
+		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	}
 
 	void Ready() {
 		this.status = STATUS_READY;
-		this.countdown = 5;
-		this.timer = 360.0;
-		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		this.countdown = convar_Racing_Countdown.IntValue;
+		this.timer = convar_Racing_Timer.FloatValue;
 
 		float origin[3];
 		g_Tracks[this.track].points.GetArray(0, origin, sizeof(origin)); //0 = Start
@@ -157,8 +171,6 @@ enum struct Vote {
 
 Vote g_Vote;
 
-Handle g_HudSync;
-
 enum struct Player {
 	int client;			//The client index of the player.
 	int points;			//How many points the player has accumulated throughout the race total.
@@ -167,6 +179,8 @@ enum struct Player {
 	int team;			//The team the player is on if the mode is teams.
 	bool charging;		//Whether or not the player is charging.
 	float jumpdelay;	//The delay between jumps while charging.
+	bool hud;			//Whether the hud should be shown or not.
+	bool finished;		//Has this player finished the race?
 
 	void Init(int client) {
 		this.client = client;
@@ -177,6 +191,8 @@ enum struct Player {
 		this.team = 0;
 		this.charging = false;
 		this.jumpdelay = 0.0;
+		this.hud = true;
+		this.finished = false;
 	}
 
 	void SetPoints(int points) {
@@ -206,8 +222,12 @@ enum struct Player {
 	}
 
 	void SyncHud() {
-		float x;
-		float y;
+		if (!this.hud) {
+			return;
+		}
+
+		float x = -1.0;
+		float y = -1.0;
 		float holdTime = 99999.0;
 		int red = 255;
 		int green = 255;
@@ -224,9 +244,11 @@ enum struct Player {
 
 		switch (g_State.mode) {
 			case MODE_SINGLE: {
-				//int clients[5]; int scores[5];
-				//GetTopScores(5, clients, scores);
-				FormatEx(sBuffer, sizeof(sBuffer), "#1: Drixevel (0)\n#2: Drixevel (0)\n#3: Drixevel (0)\n#4: Drixevel (0)\n#5: Drixevel (0)");
+				int clients[5]; int scores[5];
+				int total = GetTopScores(5, clients, scores);
+				for (int i = 0; i < total; i++) {
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)\n", sBuffer, i + 1, clients[i], scores[i]);
+				}
 			}
 
 			case MODE_TEAMS: {
@@ -236,7 +258,12 @@ enum struct Player {
 			}
 		}
 
-		ShowSyncHudText(this.client, g_HudSync, sBuffer);
+		GameRules_SetPropString("m_szScriptedHUDStringSet", sBuffer, false, 0);
+		Panel panel = new Panel();
+		panel.SetTitle("Charger Racing");
+		panel.DrawText(sBuffer);
+		panel.Send(this.client, MenuAction_Void, MENU_TIME_FOREVER);
+		delete panel;
 	}
 
 	void CacheSpeed() {
@@ -261,7 +288,13 @@ enum struct Player {
 		this.team = 0;
 		this.charging = false;
 		this.jumpdelay = 0.0;
+		this.hud = true;
+		this.finished = false;
 	}
+}
+
+public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2) {
+	return 0;
 }
 
 Player g_Player[MAXPLAYERS + 1];
@@ -285,18 +318,40 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.0 [Alpha Dev]",
+	version = "1.0.1 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+	g_LateLoad = late;
+	return APLRes_Success;
+}
+
 public void OnPluginStart() {
+	//Translations
 	LoadTranslations("common.phrases");
 	LoadTranslations("l4d2-charger-racing-64.phrases");
 
+	//ConVars
 	CreateConVar("sm_l4d2_charger_racing_64_version", "1.0.0", "Version control for this plugin.", FCVAR_DONTRECORD);
 	convar_Enabled = CreateConVar("sm_l4d2_charger_racing_64_enabled", "1", "Should this plugin be enabled or disabled?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Strafing = CreateConVar("sm_l4d2_charger_racing_64_strafing", "1", "Should the players be allowed to strafe while charging?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Strafing_Scale = CreateConVar("sm_l4d2_charger_racing_64_strafing_scale", "50.0", "How much strafing while charging based on a scale is allowed?", FCVAR_NOTIFY, true, 0.0);
+	convar_Jumping = CreateConVar("sm_l4d2_charger_racing_64_jumping", "1", "Should the players be allowed to jump while charging?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Jumping_Scale = CreateConVar("sm_l4d2_charger_racing_64_jumping_scale", "400.0", "How much jump height while charging based on a scale is allowed?", FCVAR_NOTIFY, true, 0.0);
+	convar_Pathing = CreateConVar("sm_l4d2_charger_racing_64_pathing", "1", "Should the paths be drawn to players?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Pathing_Width = CreateConVar("sm_l4d2_charger_racing_64_pathing_width", "1.0", "How wide should the paths be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Preparation_Timer = CreateConVar("sm_l4d2_charger_racing_64_preparation_timer", "60", "How long should the preparation phase be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Racing_Countdown = CreateConVar("sm_l4d2_charger_racing_64_countdown", "5", "How long should the countdown to start the race be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Racing_Timer = CreateConVar("sm_l4d2_charger_racing_64_timer", "360", "How long should races be in terms of time max?", FCVAR_NOTIFY, true, 0.0);
+	convar_Charging_Particle = CreateConVar("sm_l4d2_charger_racing_64_charging_particle", "", "Which particle should be attached to the Charger while charging?", FCVAR_NOTIFY);
 	//AutoExecConfig();
 
+	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
+	convar_Racing_Timer.AddChangeHook(OnRacingTimerChanged);
+	convar_Charging_Particle.AddChangeHook(OnParticleChanged);
+
+	//Events
 	HookEvent("round_start", Event_OnRoundStart);
 	HookEvent("player_spawn", Event_OnPlayerSpawn);
 	HookEvent("player_death", Event_OnPlayerDeath);
@@ -305,7 +360,8 @@ public void OnPluginStart() {
 	HookEvent("charger_pummel_start", Event_OnPummelStart);
 
 	//Player Commands
-	RegConsoleCmd("sm_fix", Command_Fix);
+	RegConsoleCmd("sm_fix", Command_Fix, "Fix your synced state to match where you should be at.");
+	RegConsoleCmd("sm_hud", Command_Hud, "Toggles the gamemodes HUD on or off.");
 
 	//Track Commands
 	RegAdminCmd("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
@@ -318,16 +374,20 @@ public void OnPluginStart() {
 
 	//Misc Admin Commands
 	RegAdminCmd("sm_startrace", Command_StartRace, ADMFLAG_ROOT, "Starts the race manually.");
+	RegAdminCmd("sm_endrace", Command_EndRace, ADMFLAG_ROOT, "Ends the race manually.");
+	RegAdminCmd("sm_setmode", Command_SetMode, ADMFLAG_ROOT, "Sets the mode manually.");
 	RegAdminCmd("sm_survivor", Command_SpawnSurvivor, ADMFLAG_ROOT, "Spawns a survivor where you're looking.");
 
+	//General
 	g_State.status = STATUS_NONE;
-	g_HudSync = CreateHudSynchronizer();
 
+	//Admin Menu
 	TopMenu topmenu;
 	if (LibraryExists("adminmenu") && ((topmenu = GetAdminTopMenu()) != null)) {
 		OnAdminMenuReady(topmenu);
 	}
 
+	//Gamedata
 	Handle hGameData = LoadGameConfigFile("l4d2-charger-racing-64.games");
 
 	if (hGameData == null) {
@@ -348,32 +408,74 @@ public void OnPluginStart() {
 
 	delete hGameData;
 
-	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i)) {
-			OnClientPutInServer(i);
-
-			//Kick any bots that are spawned live for easy cleanup.
-			if (IsFakeClient(i)) {
-				KickClient(i, "");
-			}
-		}
-	}
-
-	//PrintToChatAll("Charger Racing 64 has been loaded.");
+	//Second ticker and chat print
+	CreateTimer(1.0, Timer_Ticker, _, TIMER_REPEAT);
+	PrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
 }
 
-public void OnPluginEnd() {
+public void OnPrepareTimerChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	float timer = StringToFloat(newValue);
+
+	//If the new timer we're setting is less than the current time then update it to reflect the new max cap.
+	if (g_State.status == STATUS_PREPARING && g_State.timer > timer) {
+		g_State.timer = timer;
+	}
+}
+
+public void OnRacingTimerChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	float timer = StringToFloat(newValue);
+
+	//If the new timer we're setting is less than the current time then update it to reflect the new max cap.
+	if (g_State.status == STATUS_RACING && g_State.timer > timer) {
+		g_State.timer = timer;
+	}
+}
+
+public void OnParticleChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	//Make sure the particles precache whenever we use new ones.
+	if (strlen(newValue) > 0) {
+		Precache_Particle_System(newValue);
+	}
+}
+
+public Action Timer_Ticker(Handle timer) {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && !IsFakeClient(i)) {
-			ClearSyncHud(i, g_HudSync);
+			g_Player[i].SyncHud();
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 //Easy command to just fix players if they're stuck in any other state that isn't a Charger that can participate in the mode.
 public Action Command_Fix(int client, int args) {
-	PrintToChat(client, "Fixing...");
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	PrintToChat(client, "%sFixing...", PLUGIN_TAG);
 	CreateTimer(0.5, Timer_DelaySpawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+
+	return Plugin_Handled;
+}
+
+public Action Command_Hud(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	g_Player[client].hud = !g_Player[client].hud;
+	PrintToChat(client, "%sHud: ", PLUGIN_TAG, (g_Player[client].hud ? "Enabled" : "Disabled"));
+
 	return Plugin_Handled;
 }
 
@@ -385,6 +487,31 @@ public void OnConfigsExecuted() {
 	FindConVar("mp_gamemode").SetString("versus");
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("sb_dont_shoot").BoolValue = true;
+
+	if (g_LateLoad) {
+		g_LateLoad = false;
+
+		//Make sure players are preloaded on live load who are already on the server.
+		for (int i = 1; i <= MaxClients; i++) {
+			if (IsClientConnected(i)) {
+				OnClientConnected(i);
+			}
+
+			if (IsClientInGame(i)) {
+				OnClientPutInServer(i);
+			}
+		}
+
+		//Kick the bots on live load if there is any and set the state of the game to preparing.
+		KickBots();
+		g_State.Preparing();
+	}
+
+	char sParticle[64];
+	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
+	if (strlen(sParticle) > 0) {
+		Precache_Particle_System(sParticle);
+	}
 }
 
 public void OnMapStart() {
@@ -552,6 +679,13 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 			SetEntProp(entity, Prop_Data, "m_eDoorState", DOOR_STATE_OPENED);
 		}
 	}
+
+	CreateTimer(2.0, Timer_KickBots, _, TIMER_FLAG_NO_MAPCHANGE);
+}
+
+public Action Timer_KickBots(Handle timer) {
+	KickBots();
+	return Plugin_Continue;
 }
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
@@ -569,27 +703,31 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float vVel[3];
 		GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVel);
 
-		//Strafing left and right handling.
-		if ((buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT)) {
-			float vAng[3];
-			GetClientEyeAngles(client, vAng);
+		if (convar_Strafing.BoolValue) {
+			//Strafing left and right handling.
+			if ((buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT)) {
+				float vAng[3];
+				GetClientEyeAngles(client, vAng);
 
-			float vVec[3];
-			GetAngleVectors(vAng, NULL_VECTOR, vVec, NULL_VECTOR);
-			NormalizeVector(vVec, vVec);
+				float vVec[3];
+				GetAngleVectors(vAng, NULL_VECTOR, vVec, NULL_VECTOR);
+				NormalizeVector(vVec, vVec);
 
-			ScaleVector(vVec, 50.0);
-			if (buttons & IN_MOVELEFT)
-				ScaleVector(vVec, -1.0);
+				ScaleVector(vVec, convar_Strafing_Scale.FloatValue);
+				if (buttons & IN_MOVELEFT)
+					ScaleVector(vVec, -1.0);
 
-			AddVectors(vVel, vVec, vVel);
+				AddVectors(vVel, vVec, vVel);
+			}
 		}
 
 		//Jumping with a delayed cooldown.
-		float time = GetGameTime();
-		if (buttons & IN_JUMP && g_Player[client].jumpdelay < time) {
-			g_Player[client].jumpdelay = time + 0.2;
-			vVel[2] = 400.0;
+		if (convar_Jumping.BoolValue) {
+			float time = GetGameTime();
+			if (buttons & IN_JUMP && g_Player[client].jumpdelay < time) {
+				g_Player[client].jumpdelay = time + 0.2;
+				vVel[2] = convar_Jumping_Scale.FloatValue;
+			}
 		}
 
 		//Update the player's actual velocity.
@@ -599,8 +737,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	int StartFrame = 0;
 	int FrameRate = 0;
 	float Life = 0.1;
-	float Width = 1.0;
-	float EndWidth = 1.0;
+	float Width = convar_Pathing_Width.FloatValue;
+	float EndWidth = convar_Pathing_Width.FloatValue;
 	int FadeLength = 0;
 	float Amplitude = 0.0;
 	int Speed = 0;
@@ -669,22 +807,24 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		g_Player[client].CacheSpeed();
 	}
 
-	int length = g_Tracks[track].points.Length;
-	float origin[3]; int color[4];
-	float origin2[3];
+	if (convar_Pathing.BoolValue) {		
+		int length = g_Tracks[track].points.Length;
+		float origin[3]; int color[4];
+		float origin2[3];
 
-	for (int i = 0; i < g_Tracks[track].points.Length; i++) {
-		if ((i + 1) >= length) {
-			continue;
+		for (int i = 0; i < g_Tracks[track].points.Length; i++) {
+			if ((i + 1) >= length) {
+				continue;
+			}
+
+			g_Tracks[track].points.GetArray(i, origin, sizeof(origin));
+			g_Tracks[track].colors.GetArray((i+1), color, sizeof(color));
+
+			g_Tracks[track].points.GetArray((i+1), origin2, sizeof(origin2));
+
+			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
+			TE_SendToClient(client);
 		}
-
-		g_Tracks[track].points.GetArray(i, origin, sizeof(origin));
-		g_Tracks[track].colors.GetArray((i+1), color, sizeof(color));
-
-		g_Tracks[track].points.GetArray((i+1), origin2, sizeof(origin2));
-
-		TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
-		TE_SendToClient(client);
 	}
 	
 	return Plugin_Continue;
@@ -744,7 +884,7 @@ void IsNearNode(int client, int index) {
 	}
 
 	g_Player[client].currentnode = index;
-	PrintHintText(client, "Node %i reached!", index);
+	//PrintHintText(client, "Node %i reached!", index);
 
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
 	int points = RoundToCeil(g_Player[client].GetAverageSpeed());
@@ -766,9 +906,12 @@ void IsNearStart(int client) {
 }
 
 void IsNearFinish(int client) {
-	if (client) {
-
+	if (g_Player[client].finished) {
+		return;
 	}
+
+	g_Player[client].finished = true;
+	PrintToChatAll("%s%N has finished the race!", PLUGIN_TAG, client);
 }
 
 public void OnLibraryRemoved(const char[] name) {
@@ -907,7 +1050,39 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 	}
 
+	TeleportToSurvivorPos(client);
+
 	return Plugin_Stop;
+}
+
+void TeleportToSurvivorPos(int client) {
+	int positions[16];
+	int total;
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "info_survivor_position")) != -1) {
+		positions[total++] = entity;
+	}
+
+	if (total < 1) {
+		//PrintToServer("No survivor positions found.");
+		return;
+	}
+
+	int random = positions[GetRandomInt(0, total - 1)];
+
+	if (!IsValidEntity(random)) {
+		//PrintToServer("Invalid survivor position.");
+		return;
+	}
+
+	float vecOrigin[3];
+	if (!GetAbsOrigin(random, vecOrigin)) {
+		GetEntPropVector(random, Prop_Send, "m_vecOrigin", vecOrigin);
+		//PrintToServer("Using m_vecOrigin instead of GetAbsOrigin.");
+	}
+
+	TeleportEntity(client, vecOrigin, NULL_VECTOR, NULL_VECTOR);
 }
 
 public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast) {
@@ -938,8 +1113,12 @@ public void Event_OnChargeStart(Event event, const char[] name, bool dontBroadca
 	//Chargers can move left and right if they don't have the frozen flag applied.
 	SetEntProp(client, Prop_Send, "m_fFlags", GetEntProp(client, Prop_Send, "m_fFlags") & ~FL_FROZEN);
 
-	//Chargers should be on fire while charging.
-	TE_SetupParticleFollowEntity_Name("gas_fireball", client);
+	//Chargers should have a particle attached while charging.
+	char sParticle[64];
+	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
+	if (strlen(sParticle) > 0) {
+		TE_SetupParticleFollowEntity_Name(sParticle, client);
+	}
 }
 
 public void Event_OnChargeEnd(Event event, const char[] name, bool dontBroadcast) {
@@ -955,7 +1134,7 @@ public void Event_OnChargeEnd(Event event, const char[] name, bool dontBroadcast
 	//Immediately allows players to charge very shortly after it ends.
 	CreateTimer(0.2, Timer_DelayChargeEnd, userid);
 
-	//Chargers should no longer be on fire once they stop charging.
+	//Chargers should no longer be have a particle shown once they stop charging.
 	TE_SetupStopAllParticles(client);
 }
 
@@ -1062,14 +1241,14 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 	switch (action) {
 		case MenuAction_Select: {
 			if (g_Vote.track != NO_TRACK) {
-				PrintToChatAll("%t", "voted for track", param1, g_Tracks[g_Vote.track].name);
+				PrintToChatAll("%s%t", PLUGIN_TAG, "voted for track", param1, g_Tracks[g_Vote.track].name);
 			} else {
-				PrintToChatAll("%t", "voted for next track", param1, sDisplay);
+				PrintToChatAll("%s%t", PLUGIN_TAG, "voted for next track", param1, sDisplay);
 			}
 		}
 
 		case MenuAction_VoteEnd: {
-			PrintToChatAll("%t", "vote has ended");
+			PrintToChatAll("%s%t", PLUGIN_TAG, "vote has ended");
 
 			int winningvotes, totalvotes;
 			GetMenuVoteInfo(param2, winningvotes, totalvotes);
@@ -1078,9 +1257,9 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 				//0 = yes, 1 = no
 				if (param1 == 0) {
 					g_State.track = g_Vote.track;
-					PrintToChatAll("%t", "vote results track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					PrintToChatAll("%s%t", PLUGIN_TAG, "vote results track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
 				} else {
-					PrintToChatAll("%t", "vote results track not selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					PrintToChatAll("%s%t", PLUGIN_TAG, "vote results track not selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
 				}
 
 			} else {
@@ -1088,7 +1267,7 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 				menu.GetItem(param1, sWinner, sizeof(sWinner), _, sName, sizeof(sName));
 
 				g_State.track = StringToInt(sWinner);
-				PrintToChatAll("%t", "vote results track selected", sName, winningvotes, totalvotes);
+				PrintToChatAll("%s%t", PLUGIN_TAG, "vote results track selected", sName, winningvotes, totalvotes);
 			}
 
 			g_Vote.track = NO_TRACK;
@@ -1113,6 +1292,18 @@ public Action Command_StartRace(int client, int args) {
 	}
 
 	g_State.Ready();
+	PrintToChatAll("%s%N has started the race.", PLUGIN_TAG, client);
+
+	return Plugin_Handled;
+}
+
+public Action Command_EndRace(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	g_State.None();
+	PrintToChatAll("%s%N has ended the race.", PLUGIN_TAG, client);
 
 	return Plugin_Handled;
 }
@@ -1122,13 +1313,31 @@ public Action Timer_Tick(Handle timer) {
 		return Plugin_Continue;
 	}
 
+	if (g_State.status == STATUS_NONE) {
+		return Plugin_Continue;
+	}
+
+	if (g_State.status == STATUS_PREPARING) {
+		char sTime[64];
+		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
+
+		PrintCenterTextAll("Preparing to race... %s", sTime);
+		g_State.timer--;
+
+		if (g_State.timer <= 0.0) {
+			g_State.Ready();
+		}
+		
+		return Plugin_Continue;
+	}
+
 	if (g_State.countdown > -1) {
 		if (g_State.countdown > 0) {
-			PrintToChatAll("%t", "race starting in print", g_State.countdown);
-			PrintCenterTextAll("%t", "race starting in center", g_State.countdown);
+			PrintToChatAll("%s%t", PLUGIN_TAG, "race starting in print", g_State.countdown);
+			PrintCenterTextAll("%s%t", PLUGIN_TAG, "race starting in center", g_State.countdown);
 		} else {
-			PrintToChatAll("%t", "race starting go print");
-			PrintCenterTextAll("%t", "race starting go center");
+			PrintToChatAll("%s%t", PLUGIN_TAG, "race starting go print");
+			PrintCenterTextAll("%s%t", PLUGIN_TAG, "race starting go center");
 			g_State.status = STATUS_RACING;
 		}
 
@@ -1136,15 +1345,19 @@ public Action Timer_Tick(Handle timer) {
 		return Plugin_Continue;
 	}
 
-	char sTime[64];
-	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%02d:%02d:%02d", true);
+	for (int i = 1; i <= MaxClients; i++) {
+		g_Player[i].finished = false;
+	}
 
-	PrintCenterTextAll(sTime);
+	char sTime[64];
+	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
+
+	PrintCenterTextAll("Race ends in... %s", sTime);
 	g_State.timer--;
 
 	if (g_State.timer <= 0.0) {
-		PrintToChatAll("%t", "race times up print");
-		PrintCenterTextAll("%t", "race times up center");
+		PrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
+		PrintCenterTextAll("%s%t", PLUGIN_TAG, "race times up center");
 		g_State.None();
 	}
 
@@ -1255,7 +1468,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 
 			if (StrEqual(sInfo, "name")) {
 				g_SettingName[param1] = true;
-				PrintToChat(param1, "%T", "editor enter a track name", param1);
+				PrintToChat(param1, "%s%T", PLUGIN_TAG, "editor enter a track name", param1);
 				return 0;
 			} else if (StrEqual(sInfo, "difficulty")) {
 				g_CreatingTrack[param1].difficulty++;
@@ -1278,7 +1491,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 					SaveTrack(param1);
 					return 0;
 				} else {
-					PrintToChat(param1, "You must specify a track name and have at least 2 nodes created to save.");
+					PrintToChat(param1, "%sYou must specify a track name and have at least 2 nodes created to save.", PLUGIN_TAG);
 				}
 			}
 
@@ -1575,7 +1788,7 @@ void SaveTrack(int client) {
 	g_Tracks[index].points = g_CreatingTrack[client].points.Clone();
 	g_Tracks[index].colors = g_CreatingTrack[client].colors.Clone();
 
-	PrintToChat(client, "%T", "editor track save", client);
+	PrintToChat(client, "%s%T", PLUGIN_TAG, "editor track save", client);
 	g_CreatingTrack[client].Delete();
 
 	SaveTracks(g_TracksPath);
@@ -1596,9 +1809,9 @@ public Action Command_SpawnSurvivor(int client, int args) {
 	GetClientCrosshairOrigin(client, origin, true, 35.0);
 
 	if (SpawnSurvivor(origin, NULL_VECTOR, survivor)) {
-		PrintToChat(client, "%T", "survivor bot created", client);
+		PrintToChat(client, "%s%T", PLUGIN_TAG, "survivor bot created", client);
 	} else {
-		PrintToChat(client, "%T", "survivor bot failed", client);
+		PrintToChat(client, "%s%T", PLUGIN_TAG, "survivor bot failed", client);
 	}
 
 	return Plugin_Handled;
@@ -1918,13 +2131,13 @@ public int MenuHandler_AskConfirmDeleteTrack(Menu menu, MenuAction action, int p
 
 			if (StrEqual(sInfo, "Yes")) {
 				if (DeleteTrack(id)) {
-					PrintToChat(param1, "Track deleted.");
+					PrintToChat(param1, "%sTrack deleted.", PLUGIN_TAG);
 					ParseTracks(g_TracksPath);
 				} else {
-					PrintToChat(param1, "Failed to delete track.");
+					PrintToChat(param1, "%sFailed to delete track.", PLUGIN_TAG);
 				}
 			} else if (StrEqual(sInfo, "No")) {
-				PrintToChat(param1, "Track not deleted.");
+				PrintToChat(param1, "%sTrack not deleted.", PLUGIN_TAG);
 			}
 
 			OpenTracksMenu(param1, Action_Delete);
@@ -2060,7 +2273,7 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 
 			if (StrEqual(sInfo, "name")) {
 				g_SettingName[param1] = true;
-				PrintToChat(param1, "Enter a new name for the track:");
+				PrintToChat(param1, "%sEnter a new name for the track:", PLUGIN_TAG);
 				return 0;
 			} else if (StrEqual(sInfo, "difficulty")) {
 				g_Tracks[id].difficulty++;
@@ -2130,7 +2343,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 				int node = g_EditingNode[param1];
 
 				if (node == 0 || node == g_Tracks[id].points.Length - 1) {
-					PrintToChat(param1, "You cannot remove the first or last node.");
+					PrintToChat(param1, "%sYou cannot remove the first or last node.", PLUGIN_TAG);
 					OpenNodeEditorMenu(param1, id);
 					return 0;
 				}
@@ -2223,9 +2436,9 @@ public Action Command_SetTrack(int client, int args) {
 		GetCmdArg(1, sTrack, sizeof(sTrack));
 
 		if (SetTrack(StringToInt(sTrack))) {
-			PrintToChat(client, "Track has been set.");
+			PrintToChat(client, "%sTrack has been set.", PLUGIN_TAG);
 		} else {
-			PrintToChat(client, "Failed to set track.");
+			PrintToChat(client, "%sFailed to set track.", PLUGIN_TAG);
 		}
 
 		return Plugin_Handled;
@@ -2258,12 +2471,12 @@ public int MenuHandler_AskConfirmSetTrack(Menu menu, MenuAction action, int para
 
 			if (StrEqual(sInfo, "Yes")) {
 				if (SetTrack(id)) {
-					PrintToChat(param1, "Track has been set.");
+					PrintToChat(param1, "%sTrack has been set.", PLUGIN_TAG);
 				} else {
-					PrintToChat(param1, "Failed to set track.");
+					PrintToChat(param1, "%sFailed to set track.", PLUGIN_TAG);
 				}
 			} else if (StrEqual(sInfo, "No")) {
-				PrintToChat(param1, "Track has not changed.");
+				PrintToChat(param1, "%sTrack has not changed.", PLUGIN_TAG);
 			}
 
 			OpenTracksMenu(param1, Action_Set);
@@ -2289,7 +2502,7 @@ bool SetTrack(int id) {
 	}
 
 	g_State.track = id;
-	PrintToChatAll("Track has been set to %s.", g_Tracks[id].name);
+	PrintToChatAll("%sTrack has been set to %s.", PLUGIN_TAG, g_Tracks[id].name);
 
 	return true;
 }
@@ -2306,6 +2519,153 @@ int GetChargerTeamScore(int team) {
 	return score;
 }
 
-// void GetTopScores(int amount, int &clients, int &scores) {
+int GetTopScores(int max, int[] clients, int[] scores) {
+	int total = max;
 
-// }
+	if (total >= GetTeamAliveCount(3)) {
+		total = GetTeamAliveCount(3);
+	}
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+			int score = g_Player[i].points;
+
+			for (int j = 0; j < total; j++) {
+				if (score > scores[j]) {
+					for (int k = total - 1; k > j; k--) {
+						scores[k] = scores[k - 1];
+						clients[k] = clients[k - 1];
+					}
+
+					scores[j] = score;
+					clients[j] = i;
+					break;
+				}
+			}
+		}
+	}
+
+	return total;
+}
+
+stock int GetTeamAliveCount(int team) {
+	int count;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || IsClientSourceTV(i) || !IsPlayerAlive(i) || GetClientTeam(i) != team) {
+			continue;
+		}
+
+		count++;
+	}
+
+	return count;
+}
+
+void KickBots() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsFakeClient(i)) {
+			KickClient(i, "");
+		}
+	}
+
+	DeleteItems();
+	PrintToServer("Bots have been kicked.");
+}
+
+void DeleteItems() {
+	int entity = -1;
+
+	while ((entity = FindEntityByClassname(entity, "item_*")) != -1) {
+		RemoveEntity(entity);
+	}
+
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "weapon_*")) != -1) {
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+		
+		if (owner < 1 || owner > MaxClients) {
+			RemoveEntity(entity);
+		}
+	}
+
+	PrintToServer("Items have been deleted.");
+}
+
+public Action Command_SetMode(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	if (args > 0) {
+		char sMode[16];
+		GetCmdArg(1, sMode, sizeof(sMode));
+
+		if (SetMode(view_as<Modes>(StringToInt(sMode)))) {
+			PrintToChat(client, "%sMode has been set.", PLUGIN_TAG);
+		} else {
+			PrintToChat(client, "%sFailed to set mode.", PLUGIN_TAG);
+		}
+
+		return Plugin_Handled;
+	}
+
+	OpenModesMenu(client);
+
+	return Plugin_Handled;
+}
+
+void OpenModesMenu(int client) {
+	Menu menu = new Menu(MenuHandler_Modes);
+	menu.SetTitle("Select a mode:");
+
+	menu.AddItem("Players", "Players");
+	menu.AddItem("Teams", "Teams");
+
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param2) {
+	switch (action) {
+		case MenuAction_Select: {
+			char sInfo[16];
+			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			if (StrEqual(sInfo, "Players")) {
+				if (SetMode(MODE_SINGLE)) {
+					PrintToChat(param1, "%sMode has been set.", PLUGIN_TAG);
+				} else {
+					PrintToChat(param1, "%sFailed to set mode.", PLUGIN_TAG);
+				}
+			} else if (StrEqual(sInfo, "Teams")) {
+				if (SetMode(MODE_TEAMS)) {
+					PrintToChat(param1, "%sMode has been set.", PLUGIN_TAG);
+				} else {
+					PrintToChat(param1, "%sFailed to set mode.", PLUGIN_TAG);
+				}
+			}
+
+			OpenModesMenu(param1);
+		}
+		
+		case MenuAction_End: {
+			delete menu;
+		}
+	}
+	
+	return 0;
+}
+
+bool SetMode(Modes mode) {
+	if (mode < MODE_SINGLE || mode > MODE_TEAMS) {
+		return false;
+	}
+
+	g_State.mode = mode;
+	PrintToChatAll("%sMode has been set to %s.", PLUGIN_TAG, (mode == MODE_SINGLE ? "Players" : "Teams"));
+	return true;
+}
