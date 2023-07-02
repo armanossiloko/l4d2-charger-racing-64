@@ -181,6 +181,7 @@ enum struct Player {
 	float jumpdelay;	//The delay between jumps while charging.
 	bool hud;			//Whether the hud should be shown or not.
 	bool finished;		//Has this player finished the race?
+	float time;			//How many precise seconds has it been since the race started?
 
 	void Init(int client) {
 		this.client = client;
@@ -193,6 +194,7 @@ enum struct Player {
 		this.jumpdelay = 0.0;
 		this.hud = true;
 		this.finished = false;
+		this.time = 0.0;
 	}
 
 	void SetPoints(int points) {
@@ -280,6 +282,10 @@ enum struct Player {
 		return total / this.speeds.Length;
 	}
 
+	float GetTime() {
+		return GetGameTime() - this.time;
+	}
+
 	void Delete() {
 		this.client = 0;
 		this.points = 0;
@@ -290,6 +296,7 @@ enum struct Player {
 		this.jumpdelay = 0.0;
 		this.hud = true;
 		this.finished = false;
+		this.time = 0.0;
 	}
 }
 
@@ -318,7 +325,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.1 [Alpha Dev]",
+	version = "1.0.2 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -912,6 +919,9 @@ void IsNearFinish(int client) {
 
 	g_Player[client].finished = true;
 	PrintToChatAll("%s%N has finished the race!", PLUGIN_TAG, client);
+
+	ForcePlayerSuicide(client);
+	PrintToChat(client, "Your time was %s and your score is %i.", g_Player[client].GetTime(), g_Player[client].points);
 }
 
 public void OnLibraryRemoved(const char[] name) {
@@ -1339,15 +1349,17 @@ public Action Timer_Tick(Handle timer) {
 			PrintToChatAll("%s%t", PLUGIN_TAG, "race starting go print");
 			PrintCenterTextAll("%s%t", PLUGIN_TAG, "race starting go center");
 			g_State.status = STATUS_RACING;
+
+			for (int i = 1; i <= MaxClients; i++) {
+				g_Player[i].finished = false;
+				g_Player[i].time = GetGameTime();
+			}
 		}
 
 		g_State.countdown--;
 		return Plugin_Continue;
 	}
 
-	for (int i = 1; i <= MaxClients; i++) {
-		g_Player[i].finished = false;
-	}
 
 	char sTime[64];
 	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
