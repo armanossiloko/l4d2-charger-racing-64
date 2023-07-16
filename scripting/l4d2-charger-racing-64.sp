@@ -52,11 +52,11 @@ enum Difficulty {
 enum struct Track {
 	char name[64];			//The name of the track to be displayed and called.
 	Difficulty difficulty;	//The difficulty of the track, this is just an arbitrary value set when creating or editing the track.
-	ArrayList points;		//The list of origin points for the track which consists of 3D vectors in order. Index 0 is the start and the last index is the finish line.
+	ArrayList nodes;		//The list of origin points for the track which consists of 3D vectors in order. Index 0 is the start and the last index is the finish line.
 	ArrayList colors;		//The colors that correspond to the beams of the track in corresponding order.
 
 	void Init() {
-		this.points = new ArrayList(3);
+		this.nodes = new ArrayList(3);
 		this.colors = new ArrayList(4);
 	}
 
@@ -66,19 +66,19 @@ enum struct Track {
 	}
 
 	void Add(float origin[3], int colors[4]) {
-		this.points.PushArray(origin, sizeof(origin));
+		this.nodes.PushArray(origin, sizeof(origin));
 		this.colors.PushArray(colors, sizeof(colors));
 	}
 
 	void Clear() {
-		this.points.Clear();
+		this.nodes.Clear();
 		this.colors.Clear();
 	}
 
 	void Delete() {
 		this.name[0] = '\0';
 		this.difficulty = DIFFICULTY_EASY;
-		delete this.points;
+		delete this.nodes;
 		delete this.colors;
 	}
 }
@@ -114,6 +114,7 @@ enum struct GameState {
 		this.status = STATUS_PREPARING;
 		this.timer = convar_Preparation_Timer.FloatValue;
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		KickBots();
 	}
 
 	void Ready() {
@@ -122,7 +123,7 @@ enum struct GameState {
 		this.timer = convar_Racing_Timer.FloatValue;
 
 		float origin[3];
-		g_Tracks[this.track].points.GetArray(0, origin, sizeof(origin)); //0 = Start
+		g_Tracks[this.track].nodes.GetArray(0, origin, sizeof(origin)); //0 = Start
 
 		//Teleport the players to the starting line and freeze them in place.
 		for (int i = 1; i <= MaxClients; i++) {
@@ -132,6 +133,7 @@ enum struct GameState {
 
 			TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 			SetEntityMoveType(i, MOVETYPE_NONE);
+			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
 		}
 	}
 
@@ -145,6 +147,7 @@ enum struct GameState {
 			}
 
 			SetEntityMoveType(i, MOVETYPE_WALK);
+			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
 		}
 	}
 
@@ -261,25 +264,45 @@ enum struct Player {
 		}
 
 		GameRules_SetPropString("m_szScriptedHUDStringSet", sBuffer, false, 0);
+
 		Panel panel = new Panel();
-		panel.SetTitle("Charger Racing");
+		char sTime[64];
+		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
+		char sTitle[256]; FormatEx(sTitle, sizeof(sTitle), "Leaderboard (Points: %i) (%s)", this.points, sTime);
+		panel.SetTitle(sTitle);
+		panel.DrawText("----------------");
 		panel.DrawText(sBuffer);
 		panel.Send(this.client, MenuAction_Void, MENU_TIME_FOREVER);
 		delete panel;
 	}
 
 	void CacheSpeed() {
-		this.speeds.Push(GetSpeed(this.client));
+		float speed = GetSpeed(this.client);
+		this.speeds.Push(speed);
+		//PrintToServer("Speed: %.2f", speed);
 	}
 
 	float GetAverageSpeed() {
-		float total;
+		int cached = this.speeds.Length;
+		if (cached == 0) {
+			return 0.0;
+		}
 
-		for (int i = 0; i < this.speeds.Length; i++) {
+		float total;
+		for (int i = 0; i < cached; i++) {
 			total += this.speeds.Get(i);
 		}
 
-		return total / this.speeds.Length;
+		PrintToServer("total: %.2f", total);
+
+		if (total == 0.0) {
+			return 0.0;
+		}
+
+		float average = total / float(cached);
+		PrintToServer("average: %.2f", average);
+
+		return average;
 	}
 
 	float GetTime() {
@@ -420,6 +443,14 @@ public void OnPluginStart() {
 	PrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
 }
 
+public void OnPluginEnd() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsPlayerAlive(i)) {
+			SetEntityMoveType(i, MOVETYPE_WALK);
+		}
+	}
+}
+
 public void OnPrepareTimerChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
 	float timer = StringToFloat(newValue);
 
@@ -449,6 +480,10 @@ public Action Timer_Ticker(Handle timer) {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && !IsFakeClient(i)) {
 			g_Player[i].SyncHud();
+
+			if (IsPlayerAlive(i) && g_State.status == STATUS_RACING) {
+				g_Player[i].CacheSpeed();
+			}
 		}
 	}
 
@@ -481,7 +516,7 @@ public Action Command_Hud(int client, int args) {
 	}
 
 	g_Player[client].hud = !g_Player[client].hud;
-	PrintToChat(client, "%sHud: ", PLUGIN_TAG, (g_Player[client].hud ? "Enabled" : "Disabled"));
+	PrintToChat(client, "%sHud: %s", PLUGIN_TAG, (g_Player[client].hud ? "Enabled" : "Disabled"));
 
 	return Plugin_Handled;
 }
@@ -511,7 +546,6 @@ public void OnConfigsExecuted() {
 
 		//Kick the bots on live load if there is any and set the state of the game to preparing.
 		KickBots();
-		g_State.Preparing();
 	}
 
 	char sParticle[64];
@@ -519,6 +553,8 @@ public void OnConfigsExecuted() {
 	if (strlen(sParticle) > 0) {
 		Precache_Particle_System(sParticle);
 	}
+
+	g_State.Preparing();
 }
 
 public void OnMapStart() {
@@ -618,11 +654,11 @@ void SaveTracks(const char[] file) {
 		kv.JumpToKey("track-points", true);
 
 		char sTrack[16]; float origin[3]; int color[4]; char sColor[64];
-		for (int track = 0; track < g_Tracks[i].points.Length; track++) {
+		for (int track = 0; track < g_Tracks[i].nodes.Length; track++) {
 			IntToString(track, sTrack, sizeof(sTrack));
 			kv.JumpToKey(sTrack, true);
 
-			g_Tracks[i].points.GetArray(track, origin, sizeof(origin));
+			g_Tracks[i].nodes.GetArray(track, origin, sizeof(origin));
 			g_Tracks[i].colors.GetArray(track, color, sizeof(color));
 
 			kv.SetVector("origin", origin);
@@ -751,21 +787,21 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	int Speed = 0;
 
 	// Shows the track you're creating but not an actual live track.
-	if (g_CreatingTrack[client].points != null) {
+	if (g_CreatingTrack[client].nodes != null) {
 		
-		int length = g_CreatingTrack[client].points.Length;
+		int length = g_CreatingTrack[client].nodes.Length;
 		float origin[3]; int color[4];
 		float origin2[3];
 
-		for (int i = 0; i < g_CreatingTrack[client].points.Length; i++) {
+		for (int i = 0; i < g_CreatingTrack[client].nodes.Length; i++) {
 			if ((i + 1) >= length) {
 				continue;
 			}
 
-			g_CreatingTrack[client].points.GetArray(i, origin, sizeof(origin));
+			g_CreatingTrack[client].nodes.GetArray(i, origin, sizeof(origin));
 			g_CreatingTrack[client].colors.GetArray((i+1), color, sizeof(color));
 
-			g_CreatingTrack[client].points.GetArray((i+1), origin2, sizeof(origin2));
+			g_CreatingTrack[client].nodes.GetArray((i+1), origin2, sizeof(origin2));
 
 			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
 			TE_SendToClient(client);
@@ -777,19 +813,19 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	if (g_EditingTrack[client] != NO_TRACK) {
 		int track = g_EditingTrack[client];
 
-		int length = g_Tracks[track].points.Length;
+		int length = g_Tracks[track].nodes.Length;
 		float origin[3]; int color[4];
 		float origin2[3];
 
-		for (int i = 0; i < g_Tracks[track].points.Length; i++) {
+		for (int i = 0; i < g_Tracks[track].nodes.Length; i++) {
 			if ((i + 1) >= length) {
 				continue;
 			}
 
-			g_Tracks[track].points.GetArray(i, origin, sizeof(origin));
+			g_Tracks[track].nodes.GetArray(i, origin, sizeof(origin));
 			g_Tracks[track].colors.GetArray((i+1), color, sizeof(color));
 
-			g_Tracks[track].points.GetArray((i+1), origin2, sizeof(origin2));
+			g_Tracks[track].nodes.GetArray((i+1), origin2, sizeof(origin2));
 
 			if (g_EditingNode[client] == i) {
 				origin[2] += 25.0;
@@ -810,27 +846,44 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 
-	if (IsPlayerAlive(client) && g_State.status == STATUS_RACING) {
-		g_Player[client].CacheSpeed();
-	}
-
 	if (convar_Pathing.BoolValue) {		
-		int length = g_Tracks[track].points.Length;
+		int length = g_Tracks[track].nodes.Length;
 		float origin[3]; int color[4];
 		float origin2[3];
 
-		for (int i = 0; i < g_Tracks[track].points.Length; i++) {
+		float start_radius = 20.0;
+		float end_radius = 25.0;
+		int start_color[4] = { 255, 0, 0, 255 };
+		int current_color[4] = { 255, 255, 255, 255 };
+		int end_color[4] = { 0, 0, 255, 255 };
+
+		for (int i = 0; i < g_Tracks[track].nodes.Length; i++) {
+			g_Tracks[track].nodes.GetArray(i, origin, sizeof(origin));
+
+			//Show the ring for the start and end of the track.
+			if (i == 0) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, start_color, Speed, 0);
+				TE_SendToClient(client);
+			} else if (i == (length - 1)) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, end_color, Speed, 0);
+				TE_SendToClient(client);
+			}
+
 			if ((i + 1) >= length) {
 				continue;
 			}
 
-			g_Tracks[track].points.GetArray(i, origin, sizeof(origin));
 			g_Tracks[track].colors.GetArray((i+1), color, sizeof(color));
 
-			g_Tracks[track].points.GetArray((i+1), origin2, sizeof(origin2));
+			g_Tracks[track].nodes.GetArray((i+1), origin2, sizeof(origin2));
 
 			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
 			TE_SendToClient(client);
+
+			if (g_Player[client].currentnode == (i - 1) && (g_State.status == STATUS_READY || g_State.status == STATUS_RACING)) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+				TE_SendToClient(client);
+			}
 		}
 	}
 	
@@ -845,7 +898,7 @@ public void OnGameFrame() {
 		return;
 	}
 
-	int length = g_Tracks[track].points.Length;
+	int length = g_Tracks[track].nodes.Length;
 
 	//There needs to be at least 1 node to bother doing anything.
 	if (length < 1) {
@@ -854,7 +907,7 @@ public void OnGameFrame() {
 
 	float origin[3];
 	for (int i = 0; i < length; i++) {
-		g_Tracks[track].points.GetArray(i, origin, sizeof(origin));
+		g_Tracks[track].nodes.GetArray(i, origin, sizeof(origin));
 		OnNodeTick(i, origin);
 	}
 }
@@ -875,6 +928,10 @@ void OnNodeTick(int index, float origin[3]) {
 }
 
 void IsNearNode(int client, int index) {
+	if (g_State.status != STATUS_RACING) {
+		return;
+	}
+
 	//If a player tries to take an unintended shortcut then stop progress.
 	if (g_Player[client].currentnode != (index - 1)) {
 		return;
@@ -885,7 +942,7 @@ void IsNearNode(int client, int index) {
 		IsNearStart(client);
 		return;
 	//If we're at the first node, we're at the finish line.
-	} else if (index == g_Tracks[g_State.track].points.Length) {
+	} else if (index == g_Tracks[g_State.track].nodes.Length - 1) {
 		IsNearFinish(client);
 		return;
 	}
@@ -894,8 +951,10 @@ void IsNearNode(int client, int index) {
 	//PrintHintText(client, "Node %i reached!", index);
 
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
-	int points = RoundToCeil(g_Player[client].GetAverageSpeed());
+	float average = g_Player[client].GetAverageSpeed();
+	int points = RoundToCeil(average) / 5;
 	g_Player[client].speeds.Clear();
+	PrintToChat(client, "You reached node %i and gained %i points.", index, points);
 
 	//If we're carrying a survivor, give our points a multiplier.
 	if (L4D2_GetInfectedAttacker(client) != -1) {
@@ -907,9 +966,7 @@ void IsNearNode(int client, int index) {
 }
 
 void IsNearStart(int client) {
-	if (client) {
-
-	}
+	PrintToChat(client, "You are at the starting line!");
 }
 
 void IsNearFinish(int client) {
@@ -920,8 +977,11 @@ void IsNearFinish(int client) {
 	g_Player[client].finished = true;
 	PrintToChatAll("%s%N has finished the race!", PLUGIN_TAG, client);
 
+	char sTime[32];
+	FormatSeconds(g_Player[client].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
+
 	ForcePlayerSuicide(client);
-	PrintToChat(client, "Your time was %s and your score is %i.", g_Player[client].GetTime(), g_Player[client].points);
+	PrintToChat(client, "Your time was %s and your score is %i.", sTime, g_Player[client].points);
 }
 
 public void OnLibraryRemoved(const char[] name) {
@@ -1331,7 +1391,7 @@ public Action Timer_Tick(Handle timer) {
 		char sTime[64];
 		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
 
-		PrintCenterTextAll("Preparing to race... %s", sTime);
+		PrintHintTextToAll("Preparing to race... %s", sTime);
 		g_State.timer--;
 
 		if (g_State.timer <= 0.0) {
@@ -1344,11 +1404,11 @@ public Action Timer_Tick(Handle timer) {
 	if (g_State.countdown > -1) {
 		if (g_State.countdown > 0) {
 			PrintToChatAll("%s%t", PLUGIN_TAG, "race starting in print", g_State.countdown);
-			PrintCenterTextAll("%s%t", PLUGIN_TAG, "race starting in center", g_State.countdown);
+			PrintHintTextToAll("%s%t", PLUGIN_TAG, "race starting in center", g_State.countdown);
 		} else {
 			PrintToChatAll("%s%t", PLUGIN_TAG, "race starting go print");
-			PrintCenterTextAll("%s%t", PLUGIN_TAG, "race starting go center");
-			g_State.status = STATUS_RACING;
+			PrintHintTextToAll("%s%t", PLUGIN_TAG, "race starting go center");
+			g_State.Racing();
 
 			for (int i = 1; i <= MaxClients; i++) {
 				g_Player[i].finished = false;
@@ -1360,16 +1420,15 @@ public Action Timer_Tick(Handle timer) {
 		return Plugin_Continue;
 	}
 
-
 	char sTime[64];
 	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
 
-	PrintCenterTextAll("Race ends in... %s", sTime);
+	PrintHintTextToAll("Race ends in... %s", sTime);
 	g_State.timer--;
 
 	if (g_State.timer <= 0.0) {
 		PrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
-		PrintCenterTextAll("%s%t", PLUGIN_TAG, "race times up center");
+		PrintHintTextToAll("%s%t", PLUGIN_TAG, "race times up center");
 		g_State.None();
 	}
 
@@ -1468,7 +1527,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				GetDifficultyName(g_CreatingTrack[param1].difficulty, sDifficulty, sizeof(sDifficulty));
 				FormatEx(sDisplay, sizeof(sDisplay), "Difficulty: %s", sDifficulty);
 			} else if (StrEqual(sInfo, "total")) {
-				FormatEx(sDisplay, sizeof(sDisplay), "--- (Total Nodes: %d)", g_CreatingTrack[param1].points.Length);
+				FormatEx(sDisplay, sizeof(sDisplay), "--- (Total Nodes: %d)", g_CreatingTrack[param1].nodes.Length);
 			}
 
 			return RedrawMenuItem(sDisplay);
@@ -1490,16 +1549,16 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				}
 
 			} else if (StrEqual(sInfo, "add")) {
-				g_NewNode[param1] = g_CreatingTrack[param1].points.Length;
+				g_NewNode[param1] = g_CreatingTrack[param1].nodes.Length;
 				float origin[3];
 				origin = GetOrigin(param1, 10.0);
-				g_CreatingTrack[param1].points.PushArray(origin);
+				g_CreatingTrack[param1].nodes.PushArray(origin);
 				int color[4] = {255, 255, 255, 255};
 				g_CreatingTrack[param1].colors.PushArray(color, sizeof(color));
 				OpenAddNodeMenu(param1, Action_Create);
 				return 0;
 			} else if (StrEqual(sInfo, "save")) {
-				if (g_CreatingTrack[param1].points.Length >= 2 && strlen(g_CreatingTrack[param1].name) > 0) {
+				if (g_CreatingTrack[param1].nodes.Length >= 2 && strlen(g_CreatingTrack[param1].name) > 0) {
 					SaveTrack(param1);
 					return 0;
 				} else {
@@ -1528,7 +1587,7 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 		case Action_Create: {
 			int node = g_NewNode[client];
 
-			g_CreatingTrack[client].points.GetArray(node, origin, sizeof(origin));
+			g_CreatingTrack[client].nodes.GetArray(node, origin, sizeof(origin));
 
 			int color[4];
 			g_CreatingTrack[client].colors.GetArray(node, color, sizeof(color));
@@ -1540,7 +1599,7 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 			int id = g_EditingTrack[client];
 			int node = g_EditingNode[client];
 
-			g_Tracks[id].points.GetArray(node, origin, sizeof(origin));
+			g_Tracks[id].nodes.GetArray(node, origin, sizeof(origin));
 
 			int color[4];
 			g_Tracks[id].colors.GetArray(node, color, sizeof(color));
@@ -1577,7 +1636,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 					if (StrEqual(sInfo, "position")) {
 						float origin[3];
 						origin = GetOrigin(param1, 10.0);
-						g_CreatingTrack[param1].points.SetArray(node, origin);
+						g_CreatingTrack[param1].nodes.SetArray(node, origin);
 					} else if (StrEqual(sInfo, "color")) {
 						OpenColorsMenu(param1, Action_Create);
 						return 0;
@@ -1596,7 +1655,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 					if (StrEqual(sInfo, "position")) {
 						float origin[3];
 						origin = GetOrigin(param1, 10.0);
-						g_Tracks[id].points.SetArray(node, origin);
+						g_Tracks[id].nodes.SetArray(node, origin);
 					} else if (StrEqual(sInfo, "color")) {
 						OpenColorsMenu(param1, Action_Edit);
 						return 0;
@@ -1797,7 +1856,7 @@ void SaveTrack(int client) {
 
 	strcopy(g_Tracks[index].name, sizeof(Track::name), g_CreatingTrack[client].name);
 	g_Tracks[index].difficulty = g_CreatingTrack[client].difficulty;
-	g_Tracks[index].points = g_CreatingTrack[client].points.Clone();
+	g_Tracks[index].nodes = g_CreatingTrack[client].nodes.Clone();
 	g_Tracks[index].colors = g_CreatingTrack[client].colors.Clone();
 
 	PrintToChat(client, "%s%T", PLUGIN_TAG, "editor track save", client);
@@ -2341,10 +2400,10 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "add")) {
-				g_EditingNode[param1] = g_Tracks[id].points.Length;
+				g_EditingNode[param1] = g_Tracks[id].nodes.Length;
 				float origin[3];
 				origin = GetOrigin(param1, 10.0);
-				g_Tracks[id].points.PushArray(origin);
+				g_Tracks[id].nodes.PushArray(origin);
 				int color[4] = {255, 255, 255, 255};
 				g_Tracks[id].colors.PushArray(color, sizeof(color));
 				OpenAddNodeMenu(param1, Action_Edit);
@@ -2354,18 +2413,18 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 			} else if (StrEqual(sInfo, "remove")) {
 				int node = g_EditingNode[param1];
 
-				if (node == 0 || node == g_Tracks[id].points.Length - 1) {
+				if (node == 0 || node == g_Tracks[id].nodes.Length - 1) {
 					PrintToChat(param1, "%sYou cannot remove the first or last node.", PLUGIN_TAG);
 					OpenNodeEditorMenu(param1, id);
 					return 0;
 				}
 
-				g_Tracks[id].points.Erase(node);
+				g_Tracks[id].nodes.Erase(node);
 				g_Tracks[id].colors.Erase(node);
 			} else if (StrEqual(sInfo, "move")) {
 				float origin[3];
 				origin = GetOrigin(param1, 10.0);
-				g_Tracks[id].points.SetArray(g_EditingNode[param1], origin, sizeof(origin));
+				g_Tracks[id].nodes.SetArray(g_EditingNode[param1], origin, sizeof(origin));
 			} else if (StrEqual(sInfo, "color")) {
 				OpenColorsMenu(param1, Action_Edit);
 				return 0;
@@ -2397,14 +2456,14 @@ int GetNearestNode(int client, int id) {
 	int node = NO_NODE;
 	float origin2[3]; float origin3[3];
 
-	for (int i = 0; i < g_Tracks[id].points.Length; i++) {
+	for (int i = 0; i < g_Tracks[id].nodes.Length; i++) {
 		if (node == NO_NODE) {
 			node = i;
 			continue;
 		}
 		
-		g_Tracks[id].points.GetArray(i, origin2, sizeof(origin2));
-		g_Tracks[id].points.GetArray(node, origin3, sizeof(origin3));
+		g_Tracks[id].nodes.GetArray(i, origin2, sizeof(origin2));
+		g_Tracks[id].nodes.GetArray(node, origin3, sizeof(origin3));
 
 		if (GetDistance(origin, origin2) < GetDistance(origin, origin3)) {
 			node = i;
@@ -2538,26 +2597,32 @@ int GetTopScores(int max, int[] clients, int[] scores) {
 		total = GetTeamAliveCount(3);
 	}
 
+	int val;
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
-			int score = g_Player[i].points;
-
-			for (int j = 0; j < total; j++) {
-				if (score > scores[j]) {
-					for (int k = total - 1; k > j; k--) {
-						scores[k] = scores[k - 1];
-						clients[k] = clients[k - 1];
-					}
-
-					scores[j] = score;
-					clients[j] = i;
-					break;
-				}
-			}
+		if (!IsClientInGame(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+			continue;
 		}
+
+		clients[val++] = i;
+	}
+
+	SortCustom1D(clients, val, OnSortScores);
+
+	for (int i = 0; i < total; i++) {
+		scores[i] = g_Player[clients[i]].points;
 	}
 
 	return total;
+}
+
+public int OnSortScores(int elem1, int elem2, const int[] array, Handle hndl) {
+	if (elem1 > elem2) {
+		return -1;
+	} else if (elem1 < elem2) {
+		return 1;
+	}
+
+	return 0;
 }
 
 stock int GetTeamAliveCount(int team) {
