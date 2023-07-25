@@ -6,14 +6,18 @@
 #include <sourcemod>
 #include <sdktools>
 #include <adminmenu>
+#include <clientprefs>
 #include <left4dhooks>
+#include <mapchooser>
 
 //Defines
 #define PLUGIN_TAG "[Racing] "
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
 #define MAX_OBJECTS 128 //The total objects allowed per track and difficulty.
+#define MAX_COMMANDS 64 //The total commands in the plugin.
 #define NO_TRACK -1 	//This is the corresponding index for data to know that this track either doesn't exist, is invalid, or is not set.
 #define NO_NODE -1 		//This is the corresponding index for data to know that this node either doesn't exist, is invalid, or is not set.
+#define DEFAULT_OBJECT "models/props_fortifications/orange_cone001_clientside.mdl"
 
 #define MODEL_FRANCIS "models/survivors/survivor_biker.mdl"
 #define MODEL_LOUIS "models/survivors/survivor_manager.mdl"
@@ -36,9 +40,15 @@ ConVar convar_Preparation_Timer;
 ConVar convar_Racing_Countdown;
 ConVar convar_Racing_Timer;
 ConVar convar_Charging_Particle;
+ConVar convar_Rounds;
+//ConVar convar_Ratio;
+ConVar convar_Spawns_Items;
+ConVar convar_Spawns_Doors;
+ConVar convar_Spawns_Infected;
 
 //General
 char g_TracksPath[PLATFORM_MAX_PATH];
+char g_PointsConfig[PLATFORM_MAX_PATH];
 bool g_LateLoad;
 
 //Difficulties for tracks are just tags to help tell players how easy or hard this track is.
@@ -71,6 +81,86 @@ enum struct Object {
 		this.skin = skin;
 	}
 
+	void Save(const char[] file, const char[] track, int index) {
+		KeyValues kv = new KeyValues("racing-tracks");
+
+		kv.ImportFromFile(file);
+		kv.JumpToKey(track);
+		kv.JumpToKey("track-objects", true);
+		
+		char sIndex[16];
+		IntToString(index, sIndex, sizeof(sIndex));
+		kv.JumpToKey(sIndex, true);
+		
+		kv.SetString("class", this.class);
+		kv.SetVector("origin", this.origin);
+		kv.SetVector("angles", this.angles);
+		kv.SetString("model", this.model);
+		kv.SetNum("skin", this.skin);
+
+		kv.Rewind();
+		kv.ExportToFile(file);
+
+		delete kv;
+	}
+
+	void Remove(const char[] file, const char[] track, int index) {
+		KeyValues kv = new KeyValues("racing-tracks");
+
+		kv.ImportFromFile(file);
+		kv.JumpToKey(track);
+		kv.JumpToKey("track-objects", true);
+		
+		char sIndex[16];
+		IntToString(index, sIndex, sizeof(sIndex));
+		kv.DeleteKey(sIndex);
+
+		kv.Rewind();
+		kv.ExportToFile(file);
+
+		delete kv;
+	}
+
+	bool IsSurvivor() {
+		return StrEqual(this.class, "info_l4d1_survivor_spawn", false);
+	}
+
+	void SetClass(const char[] class) {
+		this.Delete();
+		strcopy(this.class, sizeof(Object::class), class);
+		this.Spawn();
+	}
+
+	void SetOrigin(float origin[3]) {
+		this.origin[0] = origin[0];
+		this.origin[1] = origin[1];
+		this.origin[2] = origin[2];
+		this.Spawn();
+	}
+
+	void GetAngles(float angles[3]) {
+		angles[0] = this.angles[0];
+		angles[1] = this.angles[1];
+		angles[2] = this.angles[2];
+	}
+
+	void SetAngles(float angles[3]) {
+		this.angles[0] = angles[0];
+		this.angles[1] = angles[1];
+		this.angles[2] = angles[2];
+		this.Spawn();
+	}
+
+	void SetModel(const char[] model) {
+		strcopy(this.model, sizeof(Object::model), model);
+		this.Spawn();
+	}
+
+	void SetSkin(int skin) {
+		this.skin = skin;
+		this.Spawn();
+	}
+	
 	void Spawn() {
 		this.Delete();
 
@@ -95,7 +185,7 @@ enum struct Object {
 	void Delete() {
 		if (this.entity > 0 && IsValidEntity(this.entity)) {
 			if (StrEqual(this.class, "info_l4d1_survivor_spawn")) {
-				KickClient(this.entity, "");
+				KickClient(this.entity);
 			} else {
 				RemoveEntity(this.entity);
 			}
@@ -119,6 +209,7 @@ enum struct Object {
 
 Object g_Objects[MAX_OBJECTS + 1];
 int g_TotalObjects;
+Object g_SpawningObjects[MAXPLAYERS + 1];
 
 enum struct Track {
 	char name[64];			//The name of the track to be displayed and called.
@@ -205,9 +296,10 @@ enum Status {
 
 //Modes consist of how the races are played out for players.
 enum Modes {
-	MODE_SINGLES,	//All players for themselves one by one and the player with the most points wins.
-	MODE_GROUPS,	//All players for themselves and the player with the most points wins.
-	MODE_TEAMS		//Players are split into teams and race one by one and the team with the most points wins.
+	MODE_SINGLES,		//All players for themselves one by one and the player with the most points wins.
+	MODE_GROUP,			//Same as singles but all at once.
+	MODE_TEAMS,			//Players are split into teams and race one by one and the team with the most points wins.
+	MODE_GROUPTEAMS		//NOT IMPLEMENTED
 }
 
 enum struct GameState {
@@ -217,13 +309,13 @@ enum struct GameState {
 	int countdown;	//Countdown from 3 to GO!
 	float timer;	//Timer while the race is active.
 	Handle ticker;	//The ticker to handle the race algorithm as a while.
+	bool paused;	//Whether the timer is paused or not.
+	int rounds;		//How many rounds have been played.
 
 	void Preparing() {
-		PrintToServer("Preparing...");
 		this.status = STATUS_PREPARING;
 		this.timer = convar_Preparation_Timer.FloatValue;
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-		KickBots();
 	}
 
 	void Ready() {
@@ -231,35 +323,86 @@ enum struct GameState {
 		this.countdown = convar_Racing_Countdown.IntValue;
 		this.timer = convar_Racing_Timer.FloatValue;
 
-		float origin[3];
-		g_Tracks[this.track].GetNodeOrigin(0, origin); //0 = Start
+		float origin[3]; bool teleport;
+		if (this.track != NO_TRACK) {
+			g_Tracks[this.track].GetNodeOrigin(0, origin); //0 = Start
+			teleport = true;
+		}
 
-		//Teleport the players to the starting line and freeze them in place.
-		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
-				continue;
+		switch (this.mode) {
+			case MODE_SINGLES: {
+				
 			}
+			case MODE_GROUP: {
+				//Teleport the players to the starting line and freeze them in place.
+				for (int i = 1; i <= MaxClients; i++) {
+					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+						continue;
+					}
 
-			TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
-			SetEntityMoveType(i, MOVETYPE_NONE);
-			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+					if (teleport) {
+						TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
+					}
+
+					SetEntityMoveType(i, MOVETYPE_NONE);
+					SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+				}
+			}
+			case MODE_TEAMS: {
+
+			}
+			case MODE_GROUPTEAMS: {
+
+			}
 		}
 
 		DeleteObjects();
 		SpawnObjects();
+		KickBots();
+
+		//Run code a frame after ready starts, mostly used to stop compile errors.
+		RequestFrame(Frame_DelayReady);
 	}
 
 	void Racing() {
 		this.status = STATUS_RACING;
 
-		//Unfreeze them so they can move again.
-		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
-				continue;
+		switch (this.mode) {
+			case MODE_SINGLES: {
+				
 			}
+			case MODE_GROUP: {
+				//Unfreeze them so they can move again.
+				for (int i = 1; i <= MaxClients; i++) {
+					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+						continue;
+					}
 
-			SetEntityMoveType(i, MOVETYPE_WALK);
-			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+					SetEntityMoveType(i, MOVETYPE_WALK);
+					SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+				}
+			}
+			case MODE_TEAMS: {
+				
+			}
+			case MODE_GROUPTEAMS: {
+
+			}
+		}
+	}
+
+	void Finish() {
+		this.status = STATUS_FINISHED;
+		this.rounds++;
+
+		//Run code a frame after the race finishes, mostly used to stop compile errors.
+		RequestFrame(Frame_DelayFinish);
+
+		this.None();
+		if (convar_Rounds.IntValue > 0 && this.rounds >= convar_Rounds.IntValue) {
+			InitiateMapChooserVote(MapChange_Instant);
+		} else {
+			CreateTimer(10.0, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
 
@@ -268,6 +411,7 @@ enum struct GameState {
 		this.countdown = 0;
 		this.timer = 0.0;
 		StopTimer(this.ticker);
+		this.paused = false;
 	}
 }
 
@@ -295,8 +439,10 @@ enum struct Player {
 	bool charging;		//Whether or not the player is charging.
 	float jumpdelay;	//The delay between jumps while charging.
 	bool hud;			//Whether the hud should be shown or not.
+	bool playing;		//Whether the player is playing or not.
 	bool finished;		//Has this player finished the race?
 	float time;			//How many precise seconds has it been since the race started?
+	int spawnent;		//The entity index of the prop or bot being created.
 
 	void Init(int client) {
 		this.client = client;
@@ -310,6 +456,7 @@ enum struct Player {
 		this.hud = true;
 		this.finished = false;
 		this.time = 0.0;
+		this.spawnent = -1;
 	}
 
 	void SetPoints(int points) {
@@ -368,7 +515,7 @@ enum struct Player {
 				}
 			}
 
-			case MODE_GROUPS: {
+			case MODE_GROUP: {
 				int clients[5]; int scores[5];
 				int total = GetTopScores(5, clients, scores);
 				for (int i = 0; i < total; i++) {
@@ -380,6 +527,10 @@ enum struct Player {
 				int score1 = GetChargerTeamScore(1);
 				int score2 = GetChargerTeamScore(2);
 				FormatEx(sBuffer, sizeof(sBuffer), "Team: #1 (%i)\nTeam: #2 (%i)", score1, score2);
+			}
+
+			case MODE_GROUPTEAMS: {
+
 			}
 		}
 
@@ -399,7 +550,6 @@ enum struct Player {
 	void CacheSpeed() {
 		float speed = GetSpeed(this.client);
 		this.speeds.Push(speed);
-		//PrintToServer("Speed: %.2f", speed);
 	}
 
 	float GetAverageSpeed() {
@@ -413,14 +563,11 @@ enum struct Player {
 			total += this.speeds.Get(i);
 		}
 
-		PrintToServer("total: %.2f", total);
-
 		if (total == 0.0) {
 			return 0.0;
 		}
 
 		float average = total / float(cached);
-		PrintToServer("average: %.2f", average);
 
 		return average;
 	}
@@ -440,6 +587,7 @@ enum struct Player {
 		this.hud = true;
 		this.finished = false;
 		this.time = 0.0;
+		this.spawnent = -1;
 	}
 }
 
@@ -464,15 +612,61 @@ enum TrackAction {
 	Action_Set		//We're setting the current track.
 }
 
+Cookie g_Cookie_Hud;
+
+enum struct Points {
+	StringMap data;
+
+	void Init() {
+		this.data = new StringMap();
+	}
+
+	void Set(Modes mode, const char[] key, int value) {
+		char buffer[256];
+		FormatEx(buffer, sizeof(buffer), "%i-%s", mode, key);
+		this.data.SetValue(buffer, value);
+	}
+
+	int Get(Modes mode, const char[] key) {
+		char buffer[256];
+		FormatEx(buffer, sizeof(buffer), "%i-%s", mode, key);
+		int value;
+		this.data.GetValue(buffer, value);
+		return value;
+	}
+
+	void Clear() {
+		this.data.Clear();
+	}
+}
+
+Points g_Points;
+
+enum struct Command {
+	char command[64];
+	char description[64];
+	int adminFlags;
+
+	void Set(const char[] command, const char[] description, int adminFlags) {
+		strcopy(this.command, sizeof(Command::command), command);
+		strcopy(this.description, sizeof(Command::description), description);
+		this.adminFlags = adminFlags;
+	}
+}
+
+Command g_Command[MAX_COMMANDS + 1];
+int g_TotalCommands;
+
 public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.2 [Alpha Dev]",
+	version = "1.0.3 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+
 	g_LateLoad = late;
 	return APLRes_Success;
 }
@@ -495,11 +689,19 @@ public void OnPluginStart() {
 	convar_Racing_Countdown = CreateConVar("sm_l4d2_charger_racing_64_countdown", "5", "How long should the countdown to start the race be?", FCVAR_NOTIFY, true, 0.0);
 	convar_Racing_Timer = CreateConVar("sm_l4d2_charger_racing_64_timer", "360", "How long should races be in terms of time max?", FCVAR_NOTIFY, true, 0.0);
 	convar_Charging_Particle = CreateConVar("sm_l4d2_charger_racing_64_charging_particle", "", "Which particle should be attached to the Charger while charging?", FCVAR_NOTIFY);
+	convar_Rounds = CreateConVar("sm_l4d2_charger_racing_64_rounds", "5", "How many rounds total before the map automatically changes?", FCVAR_NOTIFY, true, 0.0);
+	//convar_Ratio = CreateConVar("sm_l4d2_charger_racing_64_ratio", "0.25", "Percentage of players to split into groups?\n(0.25 = 25%, 0.50 = 50%, etc.)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Spawns_Items = CreateConVar("sm_l4d2_charger_racing_64_spawns_items", "1", "Should the items be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_64_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_64_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	//AutoExecConfig();
 
 	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
 	convar_Racing_Timer.AddChangeHook(OnRacingTimerChanged);
 	convar_Charging_Particle.AddChangeHook(OnParticleChanged);
+	convar_Spawns_Items.AddChangeHook(OnItemSpawnsChanged);
+	convar_Spawns_Doors.AddChangeHook(OnDoorsSpawnsChanged);
+	convar_Spawns_Infected.AddChangeHook(OnInfectedSpawnsChanged);
 
 	//Events
 	HookEvent("round_start", Event_OnRoundStart);
@@ -508,28 +710,35 @@ public void OnPluginStart() {
 	HookEvent("charger_charge_start", Event_OnChargeStart);
 	HookEvent("charger_charge_end", Event_OnChargeEnd);
 	HookEvent("charger_pummel_start", Event_OnPummelStart);
+	HookEvent("player_bot_replace", Event_OnBotReplacePlayer);
 
 	//Player Commands
-	RegConsoleCmd("sm_fix", Command_Fix, "Fix your synced state to match where you should be at.");
-	RegConsoleCmd("sm_hud", Command_Hud, "Toggles the gamemodes HUD on or off.");
+	RegConsoleCmd2("sm_fix", Command_Fix, "Fix your synced state to match where you should be at.");
+	RegConsoleCmd2("sm_hud", Command_Hud, "Toggles the gamemodes HUD on or off.");
+	RegConsoleCmd2("sm_commands", Command_Commands, "Shows the available commands for the gamemode.");
 
 	//Track Commands
-	RegAdminCmd("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
-	RegAdminCmd("sm_reloadtracks", Command_ReloadTracks, ADMFLAG_ROOT, "Reloads all tracks from the file.");
-	RegAdminCmd("sm_savetracks", Command_SaveTracks, ADMFLAG_ROOT, "Saves all tracks to the file.");
-	RegAdminCmd("sm_createtrack", Command_CreateTrack, ADMFLAG_ROOT, "Create a new track.");
-	RegAdminCmd("sm_deletetrack", Command_DeleteTrack, ADMFLAG_ROOT, "Deletes an existing track.");
-	RegAdminCmd("sm_edittrack", Command_EditTrack, ADMFLAG_ROOT, "Edit an existing track.");
-	RegAdminCmd("sm_settrack", Command_SetTrack, ADMFLAG_ROOT, "Sets the current track.");
+	RegAdminCmd2("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
+	RegAdminCmd2("sm_reloadtracks", Command_ReloadTracks, ADMFLAG_ROOT, "Reloads all tracks from the file.");
+	RegAdminCmd2("sm_savetracks", Command_SaveTracks, ADMFLAG_ROOT, "Saves all tracks to the file.");
+	RegAdminCmd2("sm_createtrack", Command_CreateTrack, ADMFLAG_ROOT, "Create a new track.");
+	RegAdminCmd2("sm_deletetrack", Command_DeleteTrack, ADMFLAG_ROOT, "Deletes an existing track.");
+	RegAdminCmd2("sm_edittrack", Command_EditTrack, ADMFLAG_ROOT, "Edit an existing track.");
+	RegAdminCmd2("sm_settrack", Command_SetTrack, ADMFLAG_ROOT, "Sets the current track.");
 
 	//Misc Admin Commands
-	RegAdminCmd("sm_startrace", Command_StartRace, ADMFLAG_ROOT, "Starts the race manually.");
-	RegAdminCmd("sm_endrace", Command_EndRace, ADMFLAG_ROOT, "Ends the race manually.");
-	RegAdminCmd("sm_setmode", Command_SetMode, ADMFLAG_ROOT, "Sets the mode manually.");
-	RegAdminCmd("sm_survivor", Command_SpawnSurvivor, ADMFLAG_ROOT, "Spawns a survivor where you're looking.");
+	RegAdminCmd2("sm_startrace", Command_StartRace, ADMFLAG_ROOT, "Starts the race manually.");
+	RegAdminCmd2("sm_endrace", Command_EndRace, ADMFLAG_ROOT, "Ends the race manually.");
+	RegAdminCmd2("sm_setmode", Command_SetMode, ADMFLAG_ROOT, "Sets the mode manually.");
+	RegAdminCmd2("sm_survivor", Command_SpawnSurvivor, ADMFLAG_ROOT, "Spawns a survivor where you're looking.");
+	RegAdminCmd2("sm_spawnprop", Command_SpawnProp, ADMFLAG_ROOT, "Spawns a specific prop at the location you're looking at.");
+	RegAdminCmd2("sm_spawnbot", Command_SpawnBot, ADMFLAG_ROOT, "Spawns a specific bot at the location you're looking at.");
+	RegAdminCmd2("sm_delete", Command_Delete, ADMFLAG_ROOT, "Delete an object from the track.");
+	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
 
 	//General
 	g_State.status = STATUS_NONE;
+	g_Points.Init();
 
 	//Admin Menu
 	TopMenu topmenu;
@@ -558,12 +767,69 @@ public void OnPluginStart() {
 
 	delete hGameData;
 
+	g_Cookie_Hud = new Cookie("l4d2-charger-racing-64-hud", "Should the hud be shown or not?", CookieAccess_Public);
+
 	//Second ticker and chat print
 	CreateTimer(1.0, Timer_Ticker, _, TIMER_REPEAT);
 	PrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
 }
 
+void RegConsoleCmd2(const char[] cmd, ConCmd callback, const char[] description = "", int flags = 0) {
+	g_Command[g_TotalCommands++].Set(cmd, description, 0);
+	RegConsoleCmd(cmd, callback, description, flags);
+}
+
+void RegAdminCmd2(const char[] cmd, ConCmd callback, int adminFlags, const char[] description = "", const char[] group = "", int flags = 0) {
+	g_Command[g_TotalCommands++].Set(cmd, description, adminFlags);
+	RegAdminCmd(cmd, callback, adminFlags, description, group, flags);
+}
+
+public Action Command_Commands(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	Menu menu = new Menu(MenuAction_Commands);
+	menu.SetTitle("Commands");
+	
+	char sBuffer[256];
+	for (int i = 0; i < g_TotalCommands; i++) {
+		if (g_Command[i].adminFlags > 0 && !(GetUserFlagBits(client) & g_Command[i].adminFlags)) {
+			continue;
+		}
+
+		FormatEx(sBuffer, sizeof(sBuffer), "%s - %s", g_Command[i].command, g_Command[i].description);
+		menu.AddItem("", sBuffer, ITEMDRAW_DISABLED);
+	}
+
+	menu.Display(client, MENU_TIME_FOREVER);
+
+	return Plugin_Handled;
+}
+
+public int MenuAction_Commands(Menu menu, MenuAction action, int param1, int param2) {
+	switch (action) {
+		case MenuAction_Select: {
+			
+		}
+		
+		case MenuAction_End: {
+			delete menu;
+		}
+	}
+	
+	return 0;
+}
+
 public void OnPluginEnd() {
+	for (int i = 0; i < g_TotalObjects; i++) {
+		g_Objects[i].Delete();
+	}
+
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
@@ -593,6 +859,24 @@ public void OnParticleChanged(ConVar convar, const char[] oldValue, const char[]
 	//Make sure the particles precache whenever we use new ones.
 	if (strlen(newValue) > 0) {
 		Precache_Particle_System(newValue);
+	}
+}
+
+public void OnItemSpawnsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	if (StrEqual(newValue, "0")) {
+		DeleteItems();
+	}
+}
+
+public void OnDoorsSpawnsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	if (StrEqual(newValue, "0")) {
+		DeleteDoors();
+	}
+}
+
+public void OnInfectedSpawnsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	if (StrEqual(newValue, "0")) {
+		DeleteInfected();
 	}
 }
 
@@ -638,6 +922,10 @@ public Action Command_Hud(int client, int args) {
 	g_Player[client].hud = !g_Player[client].hud;
 	PrintToChat(client, "%sHud: %s", PLUGIN_TAG, (g_Player[client].hud ? "Enabled" : "Disabled"));
 
+	if (AreClientCookiesCached(client)) {
+		g_Cookie_Hud.Set(client, (g_Player[client].hud ? "1" : "0"));
+	}
+
 	return Plugin_Handled;
 }
 
@@ -649,6 +937,7 @@ public void OnConfigsExecuted() {
 	FindConVar("mp_gamemode").SetString("versus");
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("sb_dont_shoot").BoolValue = true;
+	FindConVar("director_no_survivor_bots").BoolValue = true;
 
 	if (g_LateLoad) {
 		g_LateLoad = false;
@@ -661,6 +950,10 @@ public void OnConfigsExecuted() {
 
 			if (IsClientInGame(i)) {
 				OnClientPutInServer(i);
+			}
+
+			if (AreClientCookiesCached(i)) {
+				OnClientCookiesCached(i);
 			}
 		}
 
@@ -675,11 +968,56 @@ public void OnConfigsExecuted() {
 	}
 
 	g_State.Preparing();
+
+	BuildPath(Path_SM, g_PointsConfig, sizeof(g_PointsConfig), "configs/charger-racing-64/");
+	if (!DirExists(g_PointsConfig)) {
+		CreateDirectory(g_PointsConfig, 511);
+	}
+
+	StrCat(g_PointsConfig, sizeof(g_PointsConfig), "/points.cfg");
+	ParsePoints(g_PointsConfig);
+}
+
+void ParsePoints(const char[] file) {
+	g_Points.Clear();
+
+	KeyValues kv = new KeyValues("racing-points");
+
+	if (kv.ImportFromFile(file) && kv.GotoFirstSubKey()) {
+		char mode[64]; Modes index;
+		do {
+			kv.GetSectionName(mode, sizeof(mode));
+
+			index = GetMode(mode);
+
+			if (index == view_as<Modes>(-1)) {
+				continue;
+			}
+
+			if (kv.GotoFirstSubKey(false)) {
+				char key[64]; int value;
+				do {
+					kv.GetSectionName(key, sizeof(key));
+					value = kv.GetNum(NULL_STRING);
+					g_Points.Set(index, key, value);
+				} while (kv.GotoNextKey(false));
+
+				kv.GoBack();
+				kv.GoBack();
+			}
+
+		} while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Parsed points from file: %s", file);
 }
 
 public void OnMapStart() {
 	g_ModelIndex = PrecacheModel("sprites/laserbeam.vmt");
 	g_HaloIndex = PrecacheModel("sprites/glow01.vmt");
+
+	PrecacheModel(DEFAULT_OBJECT);
 
 	//Since we spawn survivors manually, we have to make sure every model is available otherwise we crash.
 	PrecacheModel(MODEL_FRANCIS);
@@ -717,7 +1055,6 @@ void ParseTracks(const char[] file) {
 
 	if (!FileExists(file)) {
 		LogError("File does not exist: %s", file);
-		PrintToServer("File does not exist: %s", file);
 		return;
 	}
 
@@ -757,7 +1094,6 @@ void ParseTracks(const char[] file) {
 
 	delete kv;
 	LogMessage("Parsed %d tracks from file: %s", g_TotalTracks, file);
-	PrintToServer("Parsed %d tracks from file: %s", g_TotalTracks, file);
 }
 
 void SaveTracks(const char[] file) {
@@ -796,7 +1132,6 @@ void SaveTracks(const char[] file) {
 
 	delete kv;
 	LogMessage("Saving %d tracks to file: %s", g_TotalTracks, file);
-	PrintToServer("Saving %d tracks from file: %s", g_TotalTracks, file);
 }
 
 public Action Command_ReloadTracks(int client, int args) {
@@ -831,23 +1166,6 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 	if (g_TotalTracks > 0) {
 		g_State.track = 0;
 	}
-
-	//Make sure all doors are opened.
-	int entity = -1; char class[32];
-	while ((entity = FindEntityByClassname(entity, "*")) != -1) {
-		GetEntityClassname(entity, class, sizeof(class));
-
-		if (StrContains(class, "door", false) != -1) {
-			SetEntProp(entity, Prop_Data, "m_eDoorState", DOOR_STATE_OPENED);
-		}
-	}
-
-	CreateTimer(2.0, Timer_KickBots, _, TIMER_FLAG_NO_MAPCHANGE);
-}
-
-public Action Timer_KickBots(Handle timer) {
-	KickBots();
-	return Plugin_Continue;
 }
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
@@ -1095,6 +1413,21 @@ void IsNearFinish(int client) {
 
 	ForcePlayerSuicide(client);
 	PrintToChat(client, "Your time was %s and your score is %i.", sTime, g_Player[client].points);
+
+	if (AllPlayersFinished()) {
+		g_State.Finish();
+	} else {
+
+	}
+}
+
+bool AllPlayersFinished() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (g_Player[i].playing && !g_Player[i].finished) {
+			return false;
+		}
+	}
+	return true;
 }
 
 public void OnLibraryRemoved(const char[] name) {
@@ -1127,9 +1460,21 @@ public void OnAdminMenuReady(Handle aTopMenu) {
 	g_AdminMenu = topmenu;
 
 	AddToTopMenu(g_AdminMenu, "sm_startrace", TopMenuObject_Item, AdminMenu_StartRace, g_AdminMenuObj, "sm_startrace", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_endrace", TopMenuObject_Item, AdminMenu_EndRace, g_AdminMenuObj, "sm_endrace", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_setmode", TopMenuObject_Item, AdminMenu_SetMode, g_AdminMenuObj, "sm_setmode", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_survivor", TopMenuObject_Item, AdminMenu_Survivor, g_AdminMenuObj, "sm_survivor", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_spawnprop", TopMenuObject_Item, AdminMenu_SpawnProp, g_AdminMenuObj, "sm_spawnprop", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_spawnbot", TopMenuObject_Item, AdminMenu_SpawnBot, g_AdminMenuObj, "sm_spawnbot", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_delete", TopMenuObject_Item, AdminMenu_Delete, g_AdminMenuObj, "sm_delete", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_pause", TopMenuObject_Item, AdminMenu_Pause, g_AdminMenuObj, "sm_pause", ADMFLAG_ROOT);
+	
 	AddToTopMenu(g_AdminMenu, "sm_votetrack", TopMenuObject_Item, AdminMenu_VoteTrack, g_AdminMenuObj, "sm_votetrack", ADMFLAG_ROOT);
 	AddToTopMenu(g_AdminMenu, "sm_reloadtracks", TopMenuObject_Item, AdminMenu_ReloadTracks, g_AdminMenuObj, "sm_reloadtracks", ADMFLAG_ROOT);
 	AddToTopMenu(g_AdminMenu, "sm_savetracks", TopMenuObject_Item, AdminMenu_SaveTracks, g_AdminMenuObj, "sm_savetracks", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_createtrack", TopMenuObject_Item, AdminMenu_CreateTrack, g_AdminMenuObj, "sm_createtrack", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_deletetrack", TopMenuObject_Item, AdminMenu_DeleteTrack, g_AdminMenuObj, "sm_deletetrack", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_edittrack", TopMenuObject_Item, AdminMenu_EditTrack, g_AdminMenuObj, "sm_edittrack", ADMFLAG_ROOT);
+	AddToTopMenu(g_AdminMenu, "sm_settrack", TopMenuObject_Item, AdminMenu_SetTrack, g_AdminMenuObj, "sm_settrack", ADMFLAG_ROOT);
 }
  
 public void CategoryHandler(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
@@ -1150,6 +1495,83 @@ public void AdminMenu_StartRace(TopMenu topmenu, TopMenuAction action, TopMenuOb
 		}
 		case TopMenuAction_SelectOption: {
 			FakeClientCommand(param, "sm_startrace");
+		}
+	}
+}
+
+public void AdminMenu_EndRace(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "End the Race");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_endrace");
+		}
+	}
+}
+
+public void AdminMenu_Survivor(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Spawn a Fake Survivor");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_endrace");
+		}
+	}
+}
+
+public void AdminMenu_SetMode(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Set the Gamemode");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_survivor");
+		}
+	}
+}
+
+public void AdminMenu_SpawnProp(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Spawn a Prop");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_spawnprop");
+		}
+	}
+}
+
+public void AdminMenu_SpawnBot(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Spawn a Bot");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_spawnbot");
+		}
+	}
+}
+
+public void AdminMenu_Delete(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Delete a Prop/Bot");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_delete");
+		}
+	}
+}
+
+public void AdminMenu_Pause(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Pause the Timer");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_pause");
 		}
 	}
 }
@@ -1186,6 +1608,50 @@ public void AdminMenu_SaveTracks(TopMenu topmenu, TopMenuAction action, TopMenuO
 		}
 	}
 }
+ 
+public void AdminMenu_CreateTrack(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Create a Track");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_createtrack");
+		}
+	}
+}
+ 
+public void AdminMenu_DeleteTrack(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Delete a Track");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_deletetrack");
+		}
+	}
+}
+ 
+public void AdminMenu_EditTrack(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Edit a Track");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_edittrack");
+		}
+	}
+}
+ 
+public void AdminMenu_SetTrack(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+	switch (action) {
+		case TopMenuAction_DisplayOption: {
+			strcopy(buffer, maxlength, "Set the Track");
+		}
+		case TopMenuAction_SelectOption: {
+			FakeClientCommand(param, "sm_settrack");
+		}
+	}
+}
 
 public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
 	if (!IsModeEnabled()) {
@@ -1200,7 +1666,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	}
 
 	g_Player[client].charging = false;
-	CreateTimer(0.5, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action Timer_DelaySpawn(Handle timer, any userid) {
@@ -1235,6 +1701,10 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 
 	TeleportToSurvivorPos(client);
 
+	if (!IsFakeClient(client)) {
+		FindConVar("director_no_survivor_bots").BoolValue = false;
+	}
+
 	return Plugin_Stop;
 }
 
@@ -1248,21 +1718,18 @@ void TeleportToSurvivorPos(int client) {
 	}
 
 	if (total < 1) {
-		//PrintToServer("No survivor positions found.");
 		return;
 	}
 
 	int random = positions[GetRandomInt(0, total - 1)];
 
 	if (!IsValidEntity(random)) {
-		//PrintToServer("Invalid survivor position.");
 		return;
 	}
 
 	float vecOrigin[3];
 	if (!GetAbsOrigin(random, vecOrigin)) {
 		GetEntPropVector(random, Prop_Send, "m_vecOrigin", vecOrigin);
-		//PrintToServer("Using m_vecOrigin instead of GetAbsOrigin.");
 	}
 
 	TeleportEntity(client, vecOrigin, NULL_VECTOR, NULL_VECTOR);
@@ -1485,7 +1952,7 @@ public Action Command_EndRace(int client, int args) {
 		return Plugin_Continue;
 	}
 
-	g_State.None();
+	g_State.Finish();
 	PrintToChatAll("%s%N has ended the race.", PLUGIN_TAG, client);
 
 	return Plugin_Handled;
@@ -1501,11 +1968,17 @@ public Action Timer_Tick(Handle timer) {
 	}
 
 	if (g_State.status == STATUS_PREPARING) {
+		if (!IsPlayersPlaying()) {
+			return Plugin_Continue;
+		}
+
 		char sTime[64];
 		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
 
-		PrintHintTextToAll("Preparing to race... %s", sTime);
-		g_State.timer--;
+		PrintHintTextToAll("Preparing to race... %s%s", sTime, g_State.paused ? " (Paused)" : "");
+		if (!g_State.paused) {
+			g_State.timer--;
+		}
 
 		if (g_State.timer <= 0.0) {
 			g_State.Ready();
@@ -1529,7 +2002,10 @@ public Action Timer_Tick(Handle timer) {
 			}
 		}
 
-		g_State.countdown--;
+		if (!g_State.paused) {
+			g_State.countdown--;
+		}
+
 		return Plugin_Continue;
 	}
 
@@ -1537,12 +2013,15 @@ public Action Timer_Tick(Handle timer) {
 	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
 
 	PrintHintTextToAll("Race ends in... %s", sTime);
-	g_State.timer--;
+	if (!g_State.paused) {
+		g_State.timer--;
+	}
 
 	if (g_State.timer <= 0.0) {
 		PrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
 		PrintHintTextToAll("%s%t", PLUGIN_TAG, "race times up center");
-		g_State.None();
+
+		g_State.Finish();
 	}
 
 	return Plugin_Continue;
@@ -1901,6 +2380,22 @@ public void OnClientConnected(int client) {
 public void OnClientPutInServer(int client) {
 	//No players should be taking damage in this mode unless specified.
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+
+	if (IsFakeClient(client) && GetClientCount(true) == 1) {
+		KickClient(client);
+	}
+}
+
+public void OnClientCookiesCached(int client) {
+	char sValue[16];
+	g_Cookie_Hud.Get(client, sValue, sizeof(sValue));
+
+	if (strlen(sValue) == 0) {
+		g_Player[client].hud = true;
+		g_Cookie_Hud.Set(client, "1");
+	} else {
+		g_Player[client].hud = StringToBool(sValue);
+	}
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype) {
@@ -2005,7 +2500,7 @@ int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character 
 	if (!IsValidEntity(entity)) {
 		return entity;
 	}
-
+	
 	DispatchKeyValueVector(entity, "origin", origin);
 	DispatchKeyValueVector(entity, "angles", angles);
 	DispatchKeyValueInt(entity, "character", character);
@@ -2027,7 +2522,7 @@ int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character 
 		return -1;
 	}
 
-	SetEntProp(bot, Prop_Send, "m_survivorCharacter", character);
+	//SetEntProp(bot, Prop_Send, "m_survivorCharacter", character);
 
 	switch (character)
 	{
@@ -2065,11 +2560,11 @@ int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character 
 		}
 	}
 
-	return entity;
+	return bot;
 }
 
 int FindLatestBot() {
-	for (int i = MaxClients; i > 0; i--) {
+	for (int i = MaxClients; i > 0; --i) {
 		if (!IsClientInGame(i)) {
 			continue;
 		}
@@ -2082,7 +2577,7 @@ int FindLatestBot() {
 	return -1;
 }
 
-bool GetClientCrosshairOrigin(int client, float pOrigin[3], bool filter_players = true, float distance = 35.0)
+bool GetClientCrosshairOrigin(int client, float pOrigin[3], bool filter_players = true, float distance = 5.0)
 {
 	if (client == 0 || client > MaxClients || !IsClientInGame(client))
 		return false;
@@ -2686,7 +3181,13 @@ bool SetTrack(int id) {
 	}
 
 	g_State.track = id;
-	PrintToChatAll("%sTrack has been set to %s.", PLUGIN_TAG, g_Tracks[id].name);
+
+	if (g_State.track != NO_TRACK) {
+		PrintToChatAll("%sTrack has been set to %s.", PLUGIN_TAG, g_Tracks[id].name);
+	} else {
+		PrintToChatAll("%sTrack has been set to None.", PLUGIN_TAG);
+	}
+
 	ParseObjects(g_TracksPath, g_State.track);
 
 	return true;
@@ -2754,17 +3255,28 @@ stock int GetTeamAliveCount(int team) {
 }
 
 void KickBots() {
+	for (int i = 0; i < g_TotalObjects; i++) {
+		if (g_Objects[i].IsSurvivor()) {
+			g_Objects[i].Delete();
+		}
+	}
+
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && IsFakeClient(i)) {
-			KickClient(i, "");
+			KickClient(i);
 		}
 	}
 
 	DeleteItems();
-	PrintToServer("Bots have been kicked.");
+	DeleteDoors();
+	DeleteInfected();
 }
 
 void DeleteItems() {
+	if (!convar_Spawns_Items.BoolValue) {
+		return;
+	}
+
 	int entity = -1;
 
 	while ((entity = FindEntityByClassname(entity, "item_*")) != -1) {
@@ -2779,8 +3291,76 @@ void DeleteItems() {
 			RemoveEntity(entity);
 		}
 	}
+}
 
-	PrintToServer("Items have been deleted.");
+void DeleteDoors() {
+	if (!convar_Spawns_Doors.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_door*")) != -1) {
+		RemoveEntity(entity);
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "momentary_door")) != -1) {
+		RemoveEntity(entity);
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1) {
+		RemoveEntity(entity);
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_wall*")) != -1) {
+		RemoveEntity(entity);
+	}
+}
+
+void DeleteInfected() {
+	if (!convar_Spawns_Infected.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "infected")) != -1) {
+		RemoveEntity(entity);
+	}
+}
+
+public void OnEntityCreated(int entity, const char[] classname) {
+	if (StrContains(classname, "item_") == 0 || StrContains(classname, "weapon_") == 0) {
+		SDKHook(entity, SDKHook_SpawnPost, OnItemSpawned);
+	}
+
+	if (StrContains(classname, "func_door") == 0 || StrEqual(classname, "momentary_door") || StrContains(classname, "prop_door") == 0 || StrContains(classname, "prop_wall") == 0) {
+		SDKHook(entity, SDKHook_SpawnPost, OnDoorSpawned);
+	}
+
+	if (StrEqual(classname, "infected")) {
+		SDKHook(entity, SDKHook_SpawnPost, OnInfectedSpawned);
+	}
+}
+
+public void OnItemSpawned(int entity) {
+	if (convar_Spawns_Items.BoolValue) {
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+
+		if (owner < 1 || owner > MaxClients) {
+			RemoveEntity(entity);
+		}
+	}
+}
+
+public void OnDoorSpawned(int entity) {
+	if (convar_Spawns_Doors.BoolValue) {
+		RemoveEntity(entity);
+	}
+}
+
+public void OnInfectedSpawned(int entity) {
+	if (convar_Spawns_Infected.BoolValue) {
+		RemoveEntity(entity);
+	}
 }
 
 public Action Command_SetMode(int client, int args) {
@@ -2817,6 +3397,7 @@ void OpenModesMenu(int client) {
 	menu.AddItem("Players", "Players");
 	menu.AddItem("Groups", "Groups");
 	menu.AddItem("Teams", "Teams");
+	menu.AddItem("GroupTeams", "Group Teams", ITEMDRAW_DISABLED);
 
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -2834,13 +3415,19 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 					PrintToChat(param1, "%sFailed to set mode.", PLUGIN_TAG);
 				}
 			} else if (StrEqual(sInfo, "Groups")) {
-				if (SetMode(MODE_GROUPS)) {
+				if (SetMode(MODE_GROUP)) {
 					PrintToChat(param1, "%sMode has been set.", PLUGIN_TAG);
 				} else {
 					PrintToChat(param1, "%sFailed to set mode.", PLUGIN_TAG);
 				}
 			} else if (StrEqual(sInfo, "Teams")) {
 				if (SetMode(MODE_TEAMS)) {
+					PrintToChat(param1, "%sMode has been set.", PLUGIN_TAG);
+				} else {
+					PrintToChat(param1, "%sFailed to set mode.", PLUGIN_TAG);
+				}
+			} else if (StrEqual(sInfo, "GroupTeams")) {
+				if (SetMode(MODE_GROUPTEAMS)) {
 					PrintToChat(param1, "%sMode has been set.", PLUGIN_TAG);
 				} else {
 					PrintToChat(param1, "%sFailed to set mode.", PLUGIN_TAG);
@@ -2877,13 +3464,315 @@ void GetModeName(Modes mode, char[] buffer, int size) {
 		case MODE_SINGLES: {
 			strcopy(buffer, size, "Singles");
 		}
-		case MODE_GROUPS: {
+		case MODE_GROUP: {
 			strcopy(buffer, size, "Groups");
 		}
 		case MODE_TEAMS: {
 			strcopy(buffer, size, "Teams");
 		}
+		case MODE_GROUPTEAMS: {
+			strcopy(buffer, size, "Group Teams");
+		}
 	}
+}
+
+Modes GetMode(const char[] name) {
+	char buffer[64];
+	for (Modes i = MODE_SINGLES; i <= MODE_GROUPTEAMS; i++) {
+		GetModeName(i, buffer, sizeof(buffer));
+		if (StrEqual(name, buffer)) {
+			return i;
+		}
+	}
+	return view_as<Modes>(-1);
+}
+
+public Action Command_SpawnProp(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	if (args == 0) {
+		float origin[3];
+		GetClientCrosshairOrigin(client, origin);
+		float angles[3];
+		g_SpawningObjects[client].Set("prop_dynamic_override", origin, angles, DEFAULT_OBJECT, 0);
+		g_SpawningObjects[client].Spawn();
+		OpenSpawnPropMenu(client);
+		return Plugin_Handled;
+	}
+
+	float origin[3];
+	GetClientCrosshairOrigin(client, origin);
+	float angles[3];
+	g_SpawningObjects[client].Set("prop_dynamic_override", origin, angles, DEFAULT_OBJECT, 0);
+	g_SpawningObjects[client].Spawn();
+	OpenSpawnPropMenu(client);
+
+	return Plugin_Handled;
+}
+
+public Action Command_SpawnBot(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	if (args == 0) {
+		float origin[3];
+		GetClientCrosshairOrigin(client, origin);
+		float angles[3];
+		g_SpawningObjects[client].Set("info_l4d1_survivor_spawn", origin, angles, DEFAULT_OBJECT, 0);
+		g_SpawningObjects[client].Spawn();
+		OpenSpawnPropMenu(client);
+		return Plugin_Handled;
+	}
+
+	float origin[3];
+	GetClientCrosshairOrigin(client, origin);
+	float angles[3];
+	g_SpawningObjects[client].Set("info_l4d1_survivor_spawn", origin, angles, DEFAULT_OBJECT, 0);
+	g_SpawningObjects[client].Spawn();
+	OpenSpawnPropMenu(client);
+
+	return Plugin_Handled;
+}
+
+void OpenSpawnPropMenu(int client) {
+	Menu menu = new Menu(MenuHandler_SpawnProp, MENU_ACTIONS_ALL);
+	menu.SetTitle("Manage new %s:", g_SpawningObjects[client].IsSurvivor() ? "survivor" : "prop");
+
+	menu.AddItem("class", "Type: Object");
+	menu.AddItem("origin", "Origin: 0.0/0.0/0.0");
+	if (!g_SpawningObjects[client].IsSurvivor()) {
+		menu.AddItem("angles", "Angles: 0.0/0.0/0.0");
+		menu.AddItem("model", "Model: error.mdl");
+		menu.AddItem("skin", "Skin: 0");
+	} else {
+		menu.AddItem("skin", "Character: Nick");
+	}
+	menu.AddItem("save", "Save");
+
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_SpawnProp(Menu menu, MenuAction action, int param1, int param2) {
+	char sInfo[64]; int itemdraw; char sDisplay[256];
+	menu.GetItem(param2, sInfo, sizeof(sInfo), itemdraw, sDisplay, sizeof(sDisplay));
+
+	switch (action) {
+		case MenuAction_DisplayItem: {
+			if (StrEqual(sInfo, "class")) {
+				FormatEx(sDisplay, sizeof(sDisplay), "Type: %s", g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
+			} else if (StrEqual(sInfo, "origin")) {
+				FormatEx(sDisplay, sizeof(sDisplay), "Origin: %.2f/%.2f/%.2f", g_SpawningObjects[param1].origin[0], g_SpawningObjects[param1].origin[1], g_SpawningObjects[param1].origin[2]);
+			} else if (StrEqual(sInfo, "angles")) {
+				FormatEx(sDisplay, sizeof(sDisplay), "Angles: %.2f/%.2f/%.2f", g_SpawningObjects[param1].angles[0], g_SpawningObjects[param1].angles[1], g_SpawningObjects[param1].angles[2]);
+			} else if (StrEqual(sInfo, "model")) {
+				FormatEx(sDisplay, sizeof(sDisplay), "Model: %s", g_SpawningObjects[param1].model);
+			} else if (StrEqual(sInfo, "skin")) {
+				if (g_SpawningObjects[param1].IsSurvivor()) {
+					char sSurvivor[64];
+					GetCharacterName(g_SpawningObjects[param1].skin, sSurvivor, sizeof(sSurvivor));
+					FormatEx(sDisplay, sizeof(sDisplay), "Character: %s", sSurvivor);
+				} else {
+					FormatEx(sDisplay, sizeof(sDisplay), "Skin: %i", g_SpawningObjects[param1].skin);
+				}
+			}
+			return RedrawMenuItem(sDisplay);
+		}
+
+		case MenuAction_DrawItem: {
+			return itemdraw;
+		}
+
+		case MenuAction_Select: {
+			if (StrEqual(sInfo, "class")) {
+				g_SpawningObjects[param1].SetClass(g_SpawningObjects[param1].IsSurvivor() ? "prop_dynamic_override" : "info_l4d1_survivor_spawn");
+				PrintToChat(param1, "%sType has been changed to %s.", PLUGIN_TAG, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
+				OpenSpawnPropMenu(param1);
+			} else if (StrEqual(sInfo, "origin")) {
+				float origin[3];
+				GetClientCrosshairOrigin(param1, origin);
+				g_SpawningObjects[param1].SetOrigin(origin);
+				OpenSpawnPropMenu(param1);
+			} else if (StrEqual(sInfo, "angles")) {
+				OpenSpawnPropAnglesMenu(param1);
+			} else if (StrEqual(sInfo, "model")) {
+				OpenSpawnPropModelMenu(param1);
+			} else if (StrEqual(sInfo, "skin")) {
+				OpenSpawnPropSkinMenu(param1);
+			} else if (StrEqual(sInfo, "save")) {
+				PrintToChat(param1, "%s%s has been saved.", PLUGIN_TAG, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
+				SaveNewProp(param1);
+			}
+		}
+		
+		case MenuAction_End: {
+			delete menu;
+		}
+	}
+
+	return 0;
+}
+
+void OpenSpawnPropAnglesMenu(int client) {
+	Menu menu = new Menu(MenuHandler_SpawnPropAngles);
+	menu.SetTitle("Tweak the angles:");
+
+	menu.AddItem("+x", "+ Pitch");
+	menu.AddItem("-x", "- Pitch");
+	menu.AddItem("+y", "+ Yaw");
+	menu.AddItem("-y", "- Yaw");
+	menu.AddItem("+z", "+ Roll");
+	menu.AddItem("-z", "- Roll");
+
+	menu.ExitBackButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_SpawnPropAngles(Menu menu, MenuAction action, int param1, int param2) {
+	switch (action) {
+		case MenuAction_Select: {
+			char sInfo[16];
+			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			float angles[3];
+			g_SpawningObjects[param1].GetAngles(angles);
+
+			float offset = 5.0;
+
+			if (StrEqual(sInfo, "+x")) {
+				angles[0] += offset;
+			} else if (StrEqual(sInfo, "-x")) {
+				angles[0] -= offset;
+			} else if (StrEqual(sInfo, "+y")) {
+				angles[1] += offset;
+			} else if (StrEqual(sInfo, "-y")) {
+				angles[1] -= offset;
+			} else if (StrEqual(sInfo, "+z")) {
+				angles[2] += offset;
+			} else if (StrEqual(sInfo, "-z")) {
+				angles[2] -= offset;
+			}
+
+			g_SpawningObjects[param1].SetAngles(angles);
+			OpenSpawnPropAnglesMenu(param1);
+		}
+		
+		case MenuAction_Cancel: {
+			if (param2 == MenuCancel_ExitBack) {
+				OpenSpawnPropMenu(param1);
+			}
+		}
+
+		case MenuAction_End: {
+			delete menu;
+		}
+	}
+	
+	return 0;
+}
+
+void OpenSpawnPropModelMenu(int client) {
+	Menu menu = new Menu(MenuHandler_SpawnPropModel);
+	menu.SetTitle("Select a model:");
+
+	menu.AddItem(DEFAULT_OBJECT, "Traffic Cone");
+
+	menu.ExitBackButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_SpawnPropModel(Menu menu, MenuAction action, int param1, int param2) {
+	switch (action) {
+		case MenuAction_Select: {
+			char sInfo[PLATFORM_MAX_PATH];
+			menu.GetItem(param2, sInfo, sizeof(sInfo));
+			g_SpawningObjects[param1].SetModel(sInfo);
+			OpenSpawnPropModelMenu(param1);
+		}
+		
+		case MenuAction_Cancel: {
+			if (param2 == MenuCancel_ExitBack) {
+				OpenSpawnPropMenu(param1);
+			}
+		}
+
+		case MenuAction_End: {
+			delete menu;
+		}
+	}
+	
+	return 0;
+}
+
+void OpenSpawnPropSkinMenu(int client) {
+	Menu menu = new Menu(MenuHandler_SpawnPropSkin);
+	menu.SetTitle("Select a model:");
+
+	if (g_SpawningObjects[client].IsSurvivor()) {
+		menu.AddItem("0", "Character: Nick");
+		menu.AddItem("1", "Character: Rochelle");
+		menu.AddItem("2", "Character: Coach");
+		menu.AddItem("3", "Character: Ellis");
+		menu.AddItem("4", "Character: Bill");
+		menu.AddItem("5", "Character: Zoey");
+		menu.AddItem("6", "Character: Francis");
+		menu.AddItem("7", "Character: Louis");
+	} else {
+		menu.AddItem("0", "Skin: 0");
+		menu.AddItem("1", "Skin: 1");
+		menu.AddItem("2", "Skin: 2");
+		menu.AddItem("3", "Skin: 3");
+		menu.AddItem("4", "Skin: 4");
+		menu.AddItem("5", "Skin: 5");
+		menu.AddItem("6", "Skin: 6");
+		menu.AddItem("7", "Skin: 7");
+	}
+
+	menu.ExitBackButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_SpawnPropSkin(Menu menu, MenuAction action, int param1, int param2) {
+	switch (action) {
+		case MenuAction_Select: {
+			char sInfo[16];
+			menu.GetItem(param2, sInfo, sizeof(sInfo));
+			g_SpawningObjects[param1].SetSkin(StringToInt(sInfo));
+			OpenSpawnPropSkinMenu(param1);
+		}
+		
+		case MenuAction_Cancel: {
+			if (param2 == MenuCancel_ExitBack) {
+				OpenSpawnPropMenu(param1);
+			}
+		}
+
+		case MenuAction_End: {
+			delete menu;
+		}
+	}
+	
+	return 0;
+}
+
+void SaveNewProp(int client) {
+	int index = g_TotalObjects++;
+	g_Objects[index].Set(g_SpawningObjects[client].class, g_SpawningObjects[client].origin, g_SpawningObjects[client].angles, g_SpawningObjects[client].model, g_SpawningObjects[client].skin);
+	g_Objects[index].Spawn();
+
+	g_SpawningObjects[client].Save(g_TracksPath, g_Tracks[g_State.track].name, index);
+	g_SpawningObjects[client].Delete();
+	g_SpawningObjects[client].Clear();
 }
 
 void ParseObjects(const char[] file, int track) {
@@ -2900,7 +3789,6 @@ void ParseObjects(const char[] file, int track) {
 
 	if (!FileExists(file)) {
 		LogError("File does not exist: %s", file);
-		PrintToServer("File does not exist: %s", file);
 		return;
 	}
 
@@ -2929,6 +3817,9 @@ void ParseObjects(const char[] file, int track) {
 					kv.GetVector("origin", origin);
 					kv.GetVector("angles", angles);
 					kv.GetString("model", model, sizeof(model));
+					if (strlen(model) > 0) {
+						PrecacheModel(model);
+					}
 					skin = kv.GetNum("skin");
 					g_Objects[g_TotalObjects++].Set(class, origin, angles, model, skin);
 				} while (kv.GotoNextKey());
@@ -2942,7 +3833,6 @@ void ParseObjects(const char[] file, int track) {
 
 	delete kv;
 	LogMessage("Parsed %d objects from file: %s", g_TotalObjects, file);
-	PrintToServer("Parsed %d objects from file: %s", g_TotalObjects, file);
 
 	SpawnObjects();
 }
@@ -2951,7 +3841,7 @@ void SpawnObjects() {
 	if (g_TotalObjects == 0) {
 		return;
 	}
-
+	
 	for (int i = 0; i < g_TotalObjects; i++) {
 		g_Objects[i].Spawn();
 	}
@@ -2965,4 +3855,157 @@ void DeleteObjects() {
 	for (int i = 0; i < g_TotalObjects; i++) {
 		g_Objects[i].Delete();
 	}
+}
+
+bool IsPlayersPlaying() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+			return true;
+		}
+	}
+	return false;
+}
+
+public Action Command_Pause(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	g_State.paused = !g_State.paused;
+	ReplyToCommand(client, "Paused: %s", g_State.paused ? "Yes" : "No");
+
+	return Plugin_Handled;
+}
+
+stock bool StringToBool(const char[] str) {
+	return view_as<bool>(StringToInt(str));
+}
+
+void GetCharacterName(int index, char[] buffer, int size) {
+	switch (index) {
+		case 0:		// Nick
+		{
+			strcopy(buffer, size, "Nick");
+		}
+		case 1:		// Rochelle
+		{
+			strcopy(buffer, size, "Rochelle");
+		}
+		case 2:		// Coach
+		{
+			strcopy(buffer, size, "Coach");
+		}
+		case 3:		// Ellis
+		{
+			strcopy(buffer, size, "Ellis");
+		}
+		case 4:		// Bill
+		{
+			strcopy(buffer, size, "Bill");
+		}
+		case 5:		// Francis
+		{
+			strcopy(buffer, size, "Francis");
+		}
+		case 6:		// Zoey
+		{
+			strcopy(buffer, size, "Zoey");
+		}
+		case 7:		// Louis
+		{
+			strcopy(buffer, size, "Louis");
+		}
+	}
+}
+
+public Action Command_Delete(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		return Plugin_Handled;
+	}
+
+	if (args == 0) {
+		int target = GetClientAimTarget(client, false);
+
+		if (!IsValidEntity(target)) {
+			ReplyToCommand(client, "You are not aiming at a valid entity.");
+			return Plugin_Handled;
+		}
+
+		int obj = GetEntityObjectIndex(target);
+
+		if (obj < 0) {
+			ReplyToCommand(client, "You are not aiming at a valid object to delete.");
+			return Plugin_Handled;
+		}
+
+		g_Objects[obj].Delete();
+		g_Objects[obj].Remove(g_TracksPath, g_Tracks[g_State.track].name, obj);
+		ReplyToCommand(client, "Object has been deleted.");
+
+		return Plugin_Handled;
+	}
+
+	int target = GetClientAimTarget(client, false);
+
+	if (!IsValidEntity(target)) {
+		ReplyToCommand(client, "You are not aiming at a valid entity.");
+		return Plugin_Handled;
+	}
+
+	int obj = GetEntityObjectIndex(target);
+
+	if (obj < 0) {
+		ReplyToCommand(client, "You are not aiming at a valid object to delete.");
+		return Plugin_Handled;
+	}
+
+	g_Objects[obj].Delete();
+	g_Objects[obj].Remove(g_TracksPath, g_Tracks[g_State.track].name, obj);
+	ReplyToCommand(client, "Object has been deleted.");
+
+	return Plugin_Handled;
+}
+
+int GetEntityObjectIndex(int entity) {
+	for (int i = 0; i < g_TotalObjects; i++) {
+		if (g_Objects[i].entity == entity) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+public void Frame_DelayReady(any data) {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+			continue;
+		}
+		
+		g_Player[i].playing = true;
+		g_Player[i].finished = false;
+	}
+}
+
+public void Frame_DelayFinish(any data) {
+	for (int i = 1; i <= MaxClients; i++) {
+		g_Player[i].playing = false;
+		g_Player[i].finished = false;
+	}
+}
+
+public void Event_OnBotReplacePlayer(Event event, const char[] name, bool dontBroadcast) {
+	int bot = GetClientOfUserId(event.GetInt("bot"));
+
+	if (IsValidEntity(bot)) {
+		KickClient(bot);
+	}
+}
+
+public Action Timer_Prepare(Handle timer) {
+	g_State.Preparing();
+	return Plugin_Continue;
 }
