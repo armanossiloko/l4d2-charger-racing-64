@@ -41,7 +41,7 @@ ConVar convar_Racing_Countdown;
 ConVar convar_Racing_Timer;
 ConVar convar_Charging_Particle;
 ConVar convar_Rounds;
-//ConVar convar_Ratio;
+ConVar convar_Ratio;
 ConVar convar_Spawns_Items;
 ConVar convar_Spawns_Doors;
 ConVar convar_Spawns_Infected;
@@ -285,6 +285,94 @@ enum struct Track {
 Track g_Tracks[MAX_TRACKS + 1];
 int g_TotalTracks;
 
+enum struct Group {
+	ArrayList groups;
+
+	void Init() {
+		this.groups = new ArrayList(MAXPLAYERS);
+	}
+
+	void AddPlayer(int client) {
+		int players[1]; players[0] = client;
+		this.AddGroup(players, 1);
+	}
+
+	void AddGroup(int[] players, int totalplayers) {
+		this.groups.PushArray(players, totalplayers);
+	}
+
+	bool IsInGroup(int group, int client) {
+		int players[MAXPLAYERS];
+		int player = this.groups.GetArray(group, players);
+
+		for (int i = 0; i < player; i++) {
+			if (players[i] == client) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool AddToGroup(int group, int client) {
+		if (this.IsInGroup(group, client)) {
+			return false;
+		}
+
+		int players[MAXPLAYERS];
+		int player = this.groups.GetArray(group, players);
+
+		player++;
+		players[player] = client;
+
+		this.groups.SetArray(group, players, player);
+		return true;
+	}
+
+	bool RemoveFromGroup(int group, int client) {
+		if (!this.IsInGroup(group, client)) {
+			return false;
+		}
+
+		int players[MAXPLAYERS];
+		int player = this.groups.GetArray(group, players);
+
+		for (int i = 0; i < player; i++) {
+			if (players[i] == client) {
+				players[i] = 0;
+				break;
+			}
+		}
+
+		this.groups.SetArray(group, players, player);
+		return true;
+	}
+
+	int GetGroupMember(int group) {
+		int players[MAXPLAYERS];
+		this.groups.GetArray(group, players);
+		return players[0];
+	}
+
+	void GetGroupMembers(int group, int[] players) {
+		this.groups.GetArray(group, players);
+	}
+
+	void RemoveGroup(int group) {
+		this.groups.Erase(group);
+	}
+
+	int GetTotalGroups() {
+		return this.groups.Length;
+	}
+
+	void Clear() {
+		this.groups.Clear();
+	}
+}
+
+Group g_Groups;
+
 //Each status is used to manage the game state.
 enum Status {
 	STATUS_NONE,		//No racing going on at all currently, mode is basically disabled.
@@ -311,6 +399,7 @@ enum struct GameState {
 	Handle ticker;	//The ticker to handle the race algorithm as a while.
 	bool paused;	//Whether the timer is paused or not.
 	int rounds;		//How many rounds have been played.
+	int group;		//The current group that is racing.
 
 	void Preparing() {
 		this.status = STATUS_PREPARING;
@@ -323,38 +412,45 @@ enum struct GameState {
 		this.countdown = convar_Racing_Countdown.IntValue;
 		this.timer = convar_Racing_Timer.FloatValue;
 
-		float origin[3]; bool teleport;
-		if (this.track != NO_TRACK) {
-			g_Tracks[this.track].GetNodeOrigin(0, origin); //0 = Start
-			teleport = true;
-		}
-
+		g_Groups.Clear();
+		this.group = 0;
+		
 		switch (this.mode) {
-			case MODE_SINGLES: {
-				
-			}
-			case MODE_GROUP: {
-				//Teleport the players to the starting line and freeze them in place.
+			case MODE_SINGLES, MODE_GROUP: {
 				for (int i = 1; i <= MaxClients; i++) {
-					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+					if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
 						continue;
 					}
 
-					if (teleport) {
-						TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
-					}
-
-					SetEntityMoveType(i, MOVETYPE_NONE);
-					SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+					g_Groups.AddPlayer(i);
+					PrintToChat(i, "%sYou have been added to queue in slot: %i", PLUGIN_TAG, i);
 				}
 			}
-			case MODE_TEAMS: {
+			case MODE_TEAMS, MODE_GROUPTEAMS: {
+				int totalplayers = GetTotalPlayers();
+				float ratio = convar_Ratio.FloatValue;
+				int players = RoundToCeil(totalplayers * ratio);
+				int teams = totalplayers / players;
 
-			}
-			case MODE_GROUPTEAMS: {
+				int clients[MAXPLAYERS];
+				int total;
 
+				for (int i = 0; i < teams; i++) {
+					total = 0;
+
+					for (int x = 0; x < players; x++) {
+						if ((clients[total++] = FindAvailablePlayer()) == -1) {
+							break;
+						}
+						PrintToChat(clients[total], "%sYou have been added to group: %i", PLUGIN_TAG, i);
+					}
+
+					g_Groups.AddGroup(clients, total);
+				}
 			}
 		}
+
+		SetupPlayers();
 
 		DeleteObjects();
 		SpawnObjects();
@@ -661,7 +757,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.3 [Alpha Dev]",
+	version = "1.0.4 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -690,7 +786,7 @@ public void OnPluginStart() {
 	convar_Racing_Timer = CreateConVar("sm_l4d2_charger_racing_64_timer", "360", "How long should races be in terms of time max?", FCVAR_NOTIFY, true, 0.0);
 	convar_Charging_Particle = CreateConVar("sm_l4d2_charger_racing_64_charging_particle", "", "Which particle should be attached to the Charger while charging?", FCVAR_NOTIFY);
 	convar_Rounds = CreateConVar("sm_l4d2_charger_racing_64_rounds", "5", "How many rounds total before the map automatically changes?", FCVAR_NOTIFY, true, 0.0);
-	//convar_Ratio = CreateConVar("sm_l4d2_charger_racing_64_ratio", "0.25", "Percentage of players to split into groups?\n(0.25 = 25%, 0.50 = 50%, etc.)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Ratio = CreateConVar("sm_l4d2_charger_racing_64_ratio", "0.25", "Percentage of players to split into groups?\n(0.25 = 25%, 0.50 = 50%, etc.)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Items = CreateConVar("sm_l4d2_charger_racing_64_spawns_items", "1", "Should the items be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_64_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_64_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -739,6 +835,7 @@ public void OnPluginStart() {
 	//General
 	g_State.status = STATUS_NONE;
 	g_Points.Init();
+	g_Groups.Init();
 
 	//Admin Menu
 	TopMenu topmenu;
@@ -1385,7 +1482,7 @@ void IsNearNode(int client, int index) {
 	float average = g_Player[client].GetAverageSpeed();
 	int points = RoundToCeil(average) / 5;
 	g_Player[client].speeds.Clear();
-	PrintToChat(client, "You reached node %i and gained %i points.", index, points);
+	PrintToChat(client, "%sYou reached node %i and gained %i points.", PLUGIN_TAG, index, points);
 
 	//If we're carrying a survivor, give our points a multiplier.
 	if (L4D2_GetInfectedAttacker(client) != -1) {
@@ -1397,7 +1494,7 @@ void IsNearNode(int client, int index) {
 }
 
 void IsNearStart(int client) {
-	PrintToChat(client, "You are at the starting line!");
+	PrintToChat(client, "%sYou are at the starting line!", PLUGIN_TAG);
 }
 
 void IsNearFinish(int client) {
@@ -1412,7 +1509,7 @@ void IsNearFinish(int client) {
 	FormatSeconds(g_Player[client].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
 
 	ForcePlayerSuicide(client);
-	PrintToChat(client, "Your time was %s and your score is %i.", sTime, g_Player[client].points);
+	PrintToChat(client, "%sYour time was %s and your score is %i.", PLUGIN_TAG, sTime, g_Player[client].points);
 
 	if (AllPlayersFinished()) {
 		g_State.Finish();
@@ -2033,7 +2130,7 @@ void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] for
 	int day; char sDay[32];
 	if (t >= 86400) {
 		day = RoundToFloor(t / 86400.0);
-		t %= 86400;
+		t = t % 86400;
 
 		Format(sDay, sizeof(sDay), "%02d", day);
 	}
@@ -2041,7 +2138,7 @@ void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] for
 	int hour; char sHour[32];
 	if (t >= 3600) {
 		hour = RoundToFloor(t / 3600.0);
-		t %= 3600;
+		t = t % 3600;
 
 		Format(sHour, sizeof(sHour), "%02d", hour);
 	}
@@ -2049,7 +2146,7 @@ void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] for
 	int mins; char sMinute[32];
 	if (t >= 60) {
 		mins = RoundToFloor(t / 60.0);
-		t %= 60;
+		t = t % 60;
 
 		Format(sMinute, sizeof(sMinute), "%02d", mins);
 	}
@@ -4008,4 +4105,84 @@ public void Event_OnBotReplacePlayer(Event event, const char[] name, bool dontBr
 public Action Timer_Prepare(Handle timer) {
 	g_State.Preparing();
 	return Plugin_Continue;
+}
+
+void SetupPlayers() {
+	switch (g_State.mode) {
+		case MODE_SINGLES, MODE_TEAMS: {
+			//One at a time.
+
+			
+		}
+		case MODE_GROUP, MODE_GROUPTEAMS: {
+			//All at once.
+
+
+		}
+	}
+
+	g_State.group++;
+
+	float origin[3]; bool teleport;
+	if (g_State.track != NO_TRACK) {
+		g_Tracks[g_State.track].GetNodeOrigin(0, origin); //0 = Start
+		teleport = true;
+	}
+
+	//Teleport the players to the starting line and freeze them in place.
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+			continue;
+		}
+
+		if (teleport) {
+			TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
+		}
+
+		SetEntityMoveType(i, MOVETYPE_NONE);
+		SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+	}
+}
+
+int GetTotalPlayers() {
+	int amount;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+			continue;
+		}
+
+		amount++;
+	}
+
+	return amount;
+}
+
+bool HasGroup(int client) {
+	for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
+		if (g_Groups.IsInGroup(i, client)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+int FindAvailablePlayer() {
+	int[] clients = new int[MaxClients];
+	int total;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || HasGroup(i)) {
+			continue;
+		}
+
+		clients[total++] = i;
+	}
+
+	if (total < 1) {
+		return -1;
+	}
+
+	return clients[GetRandomInt(0, total - 1)];
 }
