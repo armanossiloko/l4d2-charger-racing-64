@@ -10,6 +10,8 @@
 #include <left4dhooks>
 #include <mapchooser>
 
+#include <charger_racing_64>
+
 //Defines
 #define PLUGIN_TAG "[Racing] "
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
@@ -50,6 +52,67 @@ ConVar convar_Spawns_Infected;
 char g_TracksPath[PLATFORM_MAX_PATH];
 char g_PointsConfig[PLATFORM_MAX_PATH];
 bool g_LateLoad;
+
+enum struct API {
+	GlobalForward onStartRace;
+	GlobalForward onEndRace;
+	GlobalForward onPlayerStart;
+	GlobalForward onPlayerFinish;
+	GlobalForward onTrackSet;
+	GlobalForward onModeSet;
+	GlobalForward onStatusChange;
+
+	void Init() {
+		this.onStartRace = new GlobalForward("ChargerRacing_OnStartRace", ET_Ignore);
+		this.onEndRace = new GlobalForward("ChargerRacing_OnEndRace", ET_Ignore);
+		this.onPlayerStart = new GlobalForward("ChargerRacing_OnPlayerStart", ET_Ignore, Param_Cell);
+		this.onPlayerFinish = new GlobalForward("ChargerRacing_OnPlayerFinish", ET_Ignore, Param_Cell);
+		this.onTrackSet = new GlobalForward("ChargerRacing_OnTrackSet", ET_Ignore);
+		this.onStatusChange = new GlobalForward("ChargerRacing_OnStatusChange", ET_Ignore, Param_Cell);
+	}
+
+	void Call_OnStartRace() {
+		Call_StartForward(this.onStartRace);
+		Call_Finish();
+	}
+
+	void Call_OnEndRace() {
+		Call_StartForward(this.onEndRace);
+		Call_Finish();
+	}
+
+	void Call_OnPlayerStart(int client) {
+		Call_StartForward(this.onPlayerStart);
+		Call_PushCell(client);
+		Call_Finish();
+	}
+
+	void Call_OnPlayerFinish(int client) {
+		Call_StartForward(this.onPlayerFinish);
+		Call_PushCell(client);
+		Call_Finish();
+	}
+
+	void Call_OnTrackSet(int track) {
+		Call_StartForward(this.onTrackSet);
+		Call_PushCell(track);
+		Call_Finish();
+	}
+
+	void Call_OnModeSet(Modes mode) {
+		Call_StartForward(this.onModeSet);
+		Call_PushCell(mode);
+		Call_Finish();
+	}
+
+	void Call_OnStatusChange(Status status) {
+		Call_StartForward(this.onStatusChange);
+		Call_PushCell(status);
+		Call_Finish();
+	}
+}
+
+API g_API;
 
 //Difficulties for tracks are just tags to help tell players how easy or hard this track is.
 enum Difficulty {
@@ -373,23 +436,6 @@ enum struct Group {
 
 Group g_Groups;
 
-//Each status is used to manage the game state.
-enum Status {
-	STATUS_NONE,		//No racing going on at all currently, mode is basically disabled.
-	STATUS_PREPARING,	//Racing is about to start and players should be prepared.
-	STATUS_READY,		//The ready sequence where it counts down from 3 to GO!
-	STATUS_RACING,		//The active race itself where players are participating.
-	STATUS_FINISHED		//The finish line has been hit and now we're waiting for the end race call.
-}
-
-//Modes consist of how the races are played out for players.
-enum Modes {
-	MODE_SINGLES,		//All players for themselves one by one and the player with the most points wins.
-	MODE_GROUP,			//Same as singles but all at once.
-	MODE_TEAMS,			//Players are split into teams and race one by one and the team with the most points wins.
-	MODE_GROUPTEAMS		//NOT IMPLEMENTED
-}
-
 enum struct GameState {
 	int track;		//The track that is currently being used.
 	Status status;	//Status of the mode.
@@ -403,12 +449,16 @@ enum struct GameState {
 
 	void Preparing() {
 		this.status = STATUS_PREPARING;
+		g_API.Call_OnStatusChange(this.status);
+
 		this.timer = convar_Preparation_Timer.FloatValue;
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	}
 
 	void Ready() {
 		this.status = STATUS_READY;
+		g_API.Call_OnStatusChange(this.status);
+
 		this.countdown = convar_Racing_Countdown.IntValue;
 		this.timer = convar_Racing_Timer.FloatValue;
 
@@ -450,7 +500,7 @@ enum struct GameState {
 			}
 		}
 
-		SetupPlayers();
+		PopQueue();
 
 		DeleteObjects();
 		SpawnObjects();
@@ -462,6 +512,7 @@ enum struct GameState {
 
 	void Racing() {
 		this.status = STATUS_RACING;
+		g_API.Call_OnStatusChange(this.status);
 
 		switch (this.mode) {
 			case MODE_SINGLES: {
@@ -489,6 +540,7 @@ enum struct GameState {
 
 	void Finish() {
 		this.status = STATUS_FINISHED;
+		g_API.Call_OnStatusChange(this.status);
 		this.rounds++;
 
 		//Run code a frame after the race finishes, mostly used to stop compile errors.
@@ -504,6 +556,8 @@ enum struct GameState {
 
 	void None() {
 		this.status = STATUS_NONE;
+		g_API.Call_OnStatusChange(this.status);
+
 		this.countdown = 0;
 		this.timer = 0.0;
 		StopTimer(this.ticker);
@@ -757,12 +811,13 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.4 [Alpha Dev]",
+	version = "1.0.5 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
-
+	RegPluginLibrary("charger-racing");
+	g_API.Init();
 	g_LateLoad = late;
 	return APLRes_Success;
 }
@@ -833,7 +888,7 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
 
 	//General
-	g_State.status = STATUS_NONE;
+	g_State.Preparing();
 	g_Points.Init();
 	g_Groups.Init();
 
@@ -1262,6 +1317,7 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 	//If we have any available tracks on the map, just pick the 1st one.
 	if (g_TotalTracks > 0) {
 		g_State.track = 0;
+		g_API.Call_OnTrackSet(g_State.track);
 	}
 }
 
@@ -1513,8 +1569,11 @@ void IsNearFinish(int client) {
 
 	if (AllPlayersFinished()) {
 		g_State.Finish();
+		g_API.Call_OnEndRace();
 	} else {
-
+		if (g_State.mode == MODE_SINGLES || g_State.mode == MODE_TEAMS) {
+			PopQueue();
+		}
 	}
 }
 
@@ -2050,6 +2109,7 @@ public Action Command_EndRace(int client, int args) {
 	}
 
 	g_State.Finish();
+	g_API.Call_OnEndRace();
 	PrintToChatAll("%s%N has ended the race.", PLUGIN_TAG, client);
 
 	return Plugin_Handled;
@@ -2071,8 +2131,8 @@ public Action Timer_Tick(Handle timer) {
 
 		char sTime[64];
 		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
-
 		PrintHintTextToAll("Preparing to race... %s%s", sTime, g_State.paused ? " (Paused)" : "");
+
 		if (!g_State.paused) {
 			g_State.timer--;
 		}
@@ -2091,11 +2151,14 @@ public Action Timer_Tick(Handle timer) {
 		} else {
 			PrintToChatAll("%s%t", PLUGIN_TAG, "race starting go print");
 			PrintHintTextToAll("%s%t", PLUGIN_TAG, "race starting go center");
+			
 			g_State.Racing();
+			g_API.Call_OnStartRace();
 
 			for (int i = 1; i <= MaxClients; i++) {
 				g_Player[i].finished = false;
 				g_Player[i].time = GetGameTime();
+				g_API.Call_OnPlayerStart(i);
 			}
 		}
 
@@ -2108,8 +2171,8 @@ public Action Timer_Tick(Handle timer) {
 
 	char sTime[64];
 	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
-
 	PrintHintTextToAll("Race ends in... %s", sTime);
+
 	if (!g_State.paused) {
 		g_State.timer--;
 	}
@@ -2118,7 +2181,12 @@ public Action Timer_Tick(Handle timer) {
 		PrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
 		PrintHintTextToAll("%s%t", PLUGIN_TAG, "race times up center");
 
-		g_State.Finish();
+		if (g_State.mode == MODE_SINGLES || g_State.mode == MODE_TEAMS) {
+			PopQueue();
+		} else {
+			g_State.Finish();
+			g_API.Call_OnEndRace();
+		}
 	}
 
 	return Plugin_Continue;
@@ -3278,6 +3346,7 @@ bool SetTrack(int id) {
 	}
 
 	g_State.track = id;
+	g_API.Call_OnTrackSet(g_State.track);
 
 	if (g_State.track != NO_TRACK) {
 		PrintToChatAll("%sTrack has been set to %s.", PLUGIN_TAG, g_Tracks[id].name);
@@ -3551,6 +3620,8 @@ bool SetMode(Modes mode) {
 	GetModeName(mode, sName, sizeof(sName));
 
 	g_State.mode = mode;
+	g_API.Call_OnModeSet(g_State.mode);
+
 	PrintToChatAll("%sMode has been set to %s.", PLUGIN_TAG, sName);
 
 	return true;
@@ -4091,6 +4162,7 @@ public void Frame_DelayFinish(any data) {
 	for (int i = 1; i <= MaxClients; i++) {
 		g_Player[i].playing = false;
 		g_Player[i].finished = false;
+		g_API.Call_OnPlayerFinish(i);
 	}
 }
 
@@ -4107,21 +4179,36 @@ public Action Timer_Prepare(Handle timer) {
 	return Plugin_Continue;
 }
 
-void SetupPlayers() {
+void PopQueue() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || IsFakeClient(i)) {
+			continue;
+		}
+
+		ChangeClientTeam(i, view_as<int>(L4DTeam_Spectator));
+	}
+
+	int players[MAXPLAYERS];
 	switch (g_State.mode) {
 		case MODE_SINGLES, MODE_TEAMS: {
 			//One at a time.
-
-			
+			g_Groups.GetGroupMembers(g_State.group, players);
+			g_State.group++;
 		}
 		case MODE_GROUP, MODE_GROUPTEAMS: {
 			//All at once.
+			for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
+				g_Groups.GetGroupMembers(i, players);
+				for (int j = 0; j < MAXPLAYERS; j++) {
+					if (players[j] == 0) {
+						continue;
+					}
 
-
+					ChangeClientTeam(players[j], view_as<int>(L4DTeam_Infected));
+				}
+			}
 		}
 	}
-
-	g_State.group++;
 
 	float origin[3]; bool teleport;
 	if (g_State.track != NO_TRACK) {
