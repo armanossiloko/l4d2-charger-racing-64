@@ -20,6 +20,30 @@ enum Modes {
 	MODE_GROUPTEAMS		//NOT IMPLEMENTED
 }
 
+//Difficulties for tracks are just tags to help tell players how easy or hard this track is.
+enum Difficulty {
+	DIFFICULTY_EASY,
+	DIFFICULTY_NORMAL,
+	DIFFICULTY_HARD,
+	DIFFICULTY_EXPERT,
+	DIFFICULTY_IMPOSSIBLE	//Send Help.
+}
+
+//The action to take when managing tracks through the commands and menus.
+enum TrackAction {
+	Action_Create,	//We're creating a new track.
+	Action_Delete,	//We're deleting this track entirely.
+	Action_Edit,	//We're editing this track.
+	Action_Set		//We're setting the current track.
+}
+
+native void ChargerRacing_SetTrack(int track);
+native int ChargerRacing_GetTrack();
+native void ChargerRacing_SetMode(Modes mode);
+native Modes ChargerRacing_GetMode();
+native void ChargerRacing_SetStatus(Status status);
+native Status ChargerRacing_GetStatus();
+
 forward void ChargerRacing_OnStartRace();
 forward void ChargerRacing_OnEndRace();
 forward void ChargerRacing_OnPlayerStart(int client);
@@ -31,7 +55,12 @@ forward void ChargerRacing_OnStatusChange(Status status);
 #if !defined REQUIRE_PLUGIN
 public __pl_charger_racing_64_SetNTVOptional()
 {
-	//MarkNativeAsOptional("");
+	MarkNativeAsOptional("ChargerRacing_SetTrack");
+	MarkNativeAsOptional("ChargerRacing_GetTrack");
+	MarkNativeAsOptional("ChargerRacing_SetMode");
+	MarkNativeAsOptional("ChargerRacing_GetMode");
+	MarkNativeAsOptional("ChargerRacing_SetStatus");
+	MarkNativeAsOptional("ChargerRacing_GetStatus");
 }
 #endif
 

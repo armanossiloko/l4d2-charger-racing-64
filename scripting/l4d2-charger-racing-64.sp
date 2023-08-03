@@ -53,697 +53,27 @@ char g_TracksPath[PLATFORM_MAX_PATH];
 char g_PointsConfig[PLATFORM_MAX_PATH];
 bool g_LateLoad;
 
-enum struct API {
-	GlobalForward onStartRace;
-	GlobalForward onEndRace;
-	GlobalForward onPlayerStart;
-	GlobalForward onPlayerFinish;
-	GlobalForward onTrackSet;
-	GlobalForward onModeSet;
-	GlobalForward onStatusChange;
-
-	void Init() {
-		this.onStartRace = new GlobalForward("ChargerRacing_OnStartRace", ET_Ignore);
-		this.onEndRace = new GlobalForward("ChargerRacing_OnEndRace", ET_Ignore);
-		this.onPlayerStart = new GlobalForward("ChargerRacing_OnPlayerStart", ET_Ignore, Param_Cell);
-		this.onPlayerFinish = new GlobalForward("ChargerRacing_OnPlayerFinish", ET_Ignore, Param_Cell);
-		this.onTrackSet = new GlobalForward("ChargerRacing_OnTrackSet", ET_Ignore);
-		this.onStatusChange = new GlobalForward("ChargerRacing_OnStatusChange", ET_Ignore, Param_Cell);
-	}
-
-	void Call_OnStartRace() {
-		Call_StartForward(this.onStartRace);
-		Call_Finish();
-	}
-
-	void Call_OnEndRace() {
-		Call_StartForward(this.onEndRace);
-		Call_Finish();
-	}
-
-	void Call_OnPlayerStart(int client) {
-		Call_StartForward(this.onPlayerStart);
-		Call_PushCell(client);
-		Call_Finish();
-	}
-
-	void Call_OnPlayerFinish(int client) {
-		Call_StartForward(this.onPlayerFinish);
-		Call_PushCell(client);
-		Call_Finish();
-	}
-
-	void Call_OnTrackSet(int track) {
-		Call_StartForward(this.onTrackSet);
-		Call_PushCell(track);
-		Call_Finish();
-	}
-
-	void Call_OnModeSet(Modes mode) {
-		Call_StartForward(this.onModeSet);
-		Call_PushCell(mode);
-		Call_Finish();
-	}
-
-	void Call_OnStatusChange(Status status) {
-		Call_StartForward(this.onStatusChange);
-		Call_PushCell(status);
-		Call_Finish();
-	}
-}
-
 API g_API;
-
-//Difficulties for tracks are just tags to help tell players how easy or hard this track is.
-enum Difficulty {
-	DIFFICULTY_EASY,
-	DIFFICULTY_NORMAL,
-	DIFFICULTY_HARD,
-	DIFFICULTY_EXPERT,
-	DIFFICULTY_IMPOSSIBLE	//Send Help.
-}
-
-enum struct Object {
-	char class[64];
-	float origin[3];
-	float angles[3];
-	char model[PLATFORM_MAX_PATH];
-	int skin;
-
-	int entity;
-
-	void Set(const char[] class, float origin[3], float angles[3], const char[] model, int skin) {
-		strcopy(this.class, sizeof(Object::class), class);
-		this.origin[0] = origin[0];
-		this.origin[1] = origin[1];
-		this.origin[2] = origin[2];
-		this.angles[0] = angles[0];
-		this.angles[1] = angles[1];
-		this.angles[2] = angles[2];
-		strcopy(this.model, sizeof(Object::model), model);
-		this.skin = skin;
-	}
-
-	void Save(const char[] file, const char[] track, int index) {
-		KeyValues kv = new KeyValues("racing-tracks");
-
-		kv.ImportFromFile(file);
-		kv.JumpToKey(track);
-		kv.JumpToKey("track-objects", true);
-		
-		char sIndex[16];
-		IntToString(index, sIndex, sizeof(sIndex));
-		kv.JumpToKey(sIndex, true);
-		
-		kv.SetString("class", this.class);
-		kv.SetVector("origin", this.origin);
-		kv.SetVector("angles", this.angles);
-		kv.SetString("model", this.model);
-		kv.SetNum("skin", this.skin);
-
-		kv.Rewind();
-		kv.ExportToFile(file);
-
-		delete kv;
-	}
-
-	void Remove(const char[] file, const char[] track, int index) {
-		KeyValues kv = new KeyValues("racing-tracks");
-
-		kv.ImportFromFile(file);
-		kv.JumpToKey(track);
-		kv.JumpToKey("track-objects", true);
-		
-		char sIndex[16];
-		IntToString(index, sIndex, sizeof(sIndex));
-		kv.DeleteKey(sIndex);
-
-		kv.Rewind();
-		kv.ExportToFile(file);
-
-		delete kv;
-	}
-
-	bool IsSurvivor() {
-		return StrEqual(this.class, "info_l4d1_survivor_spawn", false);
-	}
-
-	void SetClass(const char[] class) {
-		this.Delete();
-		strcopy(this.class, sizeof(Object::class), class);
-		this.Spawn();
-	}
-
-	void SetOrigin(float origin[3]) {
-		this.origin[0] = origin[0];
-		this.origin[1] = origin[1];
-		this.origin[2] = origin[2];
-		this.Spawn();
-	}
-
-	void GetAngles(float angles[3]) {
-		angles[0] = this.angles[0];
-		angles[1] = this.angles[1];
-		angles[2] = this.angles[2];
-	}
-
-	void SetAngles(float angles[3]) {
-		this.angles[0] = angles[0];
-		this.angles[1] = angles[1];
-		this.angles[2] = angles[2];
-		this.Spawn();
-	}
-
-	void SetModel(const char[] model) {
-		strcopy(this.model, sizeof(Object::model), model);
-		this.Spawn();
-	}
-
-	void SetSkin(int skin) {
-		this.skin = skin;
-		this.Spawn();
-	}
-	
-	void Spawn() {
-		this.Delete();
-
-		if (StrEqual(this.class, "info_l4d1_survivor_spawn")) {
-			this.entity = SpawnSurvivor(this.origin, this.angles, this.skin);
-			return;
-		}
-
-		this.entity = CreateEntityByName(this.class);
-
-		if (!IsValidEntity(this.entity)) {
-			return;
-		}
-
-		DispatchKeyValueVector(this.entity, "origin", this.origin);
-		DispatchKeyValueVector(this.entity, "angles", this.angles);
-		DispatchKeyValue(this.entity, "model", this.model);
-		DispatchKeyValueInt(this.entity, "skin", this.skin);
-		DispatchSpawn(this.entity);
-	}
-
-	void Delete() {
-		if (this.entity > 0 && IsValidEntity(this.entity)) {
-			if (StrEqual(this.class, "info_l4d1_survivor_spawn")) {
-				KickClient(this.entity);
-			} else {
-				RemoveEntity(this.entity);
-			}
-		}
-
-		this.entity = -1;
-	}
-
-	void Clear() {
-		this.class[0] = '\0';
-		this.origin[0] = 0.0;
-		this.origin[1] = 0.0;
-		this.origin[2] = 0.0;
-		this.angles[0] = 0.0;
-		this.angles[1] = 0.0;
-		this.angles[2] = 0.0;
-		this.model[0] = '\0';
-		this.skin = 0;
-	}
-}
+GameState g_State;
+Points g_Points;
+Group g_Groups;
+Vote g_Vote;
 
 Object g_Objects[MAX_OBJECTS + 1];
 int g_TotalObjects;
 Object g_SpawningObjects[MAXPLAYERS + 1];
 
-enum struct Track {
-	char name[64];			//The name of the track to be displayed and called.
-	Difficulty difficulty;	//The difficulty of the track, this is just an arbitrary value set when creating or editing the track.
-	
-	//Nodes
-	ArrayList nodes;		//The list of origin points for the track which consists of 3D vectors in order. Index 0 is the start and the last index is the finish line.
-	ArrayList colors;		//The colors that correspond to the beams of the track in corresponding order.
-
-	void Init() {
-		this.nodes = new ArrayList(3);
-		this.colors = new ArrayList(4);
-	}
-
-	void Set(const char[] name, Difficulty difficulty) {
-		strcopy(this.name, sizeof(Track::name), name);
-		this.difficulty = difficulty;
-	}
-
-	void AddNode(float origin[3], int colors[4]) {
-		this.nodes.PushArray(origin, sizeof(origin));
-		this.colors.PushArray(colors, sizeof(colors));
-	}
-
-	void SetNode(int index, float origin[3], int colors[4]) {
-		this.nodes.SetArray(index, origin, sizeof(origin));
-		this.colors.SetArray(index, colors, sizeof(colors));
-	}
-
-	void SetNodeOrigin(int index, float origin[3]) {
-		this.nodes.SetArray(index, origin, sizeof(origin));
-	}
-
-	void SetNodeColor(int index, int colors[4]) {
-		this.colors.SetArray(index, colors, sizeof(colors));
-	}
-
-	int GetTotalNodes() {
-		return this.nodes.Length;
-	}
-
-	void GetNode(int index, float origin[3], int colors[4]) {
-		this.nodes.GetArray(index, origin, sizeof(origin));
-		this.colors.GetArray(index, colors, sizeof(colors));
-	}
-
-	void GetNodeOrigin(int index, float origin[3]) {
-		this.nodes.GetArray(index, origin, sizeof(origin));
-	}
-
-	void GetNodeColor(int index, int colors[4]) {
-		this.colors.GetArray(index, colors, sizeof(colors));
-	}
-
-	void DeleteNode(int index) {
-		this.nodes.Erase(index);
-		this.colors.Erase(index);
-	}
-
-	void Clear() {
-		this.nodes.Clear();
-		this.colors.Clear();
-	}
-
-	void Delete() {
-		this.name[0] = '\0';
-		this.difficulty = DIFFICULTY_EASY;
-		delete this.nodes;
-		delete this.colors;
-	}
-}
+Command g_Command[MAX_COMMANDS + 1];
+int g_TotalCommands;
 
 Track g_Tracks[MAX_TRACKS + 1];
 int g_TotalTracks;
-
-enum struct Group {
-	ArrayList groups;
-
-	void Init() {
-		this.groups = new ArrayList(MAXPLAYERS);
-	}
-
-	void AddPlayer(int client) {
-		int players[1]; players[0] = client;
-		this.AddGroup(players, 1);
-	}
-
-	void AddGroup(int[] players, int totalplayers) {
-		this.groups.PushArray(players, totalplayers);
-	}
-
-	bool IsInGroup(int group, int client) {
-		int players[MAXPLAYERS];
-		int player = this.groups.GetArray(group, players);
-
-		for (int i = 0; i < player; i++) {
-			if (players[i] == client) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	bool AddToGroup(int group, int client) {
-		if (this.IsInGroup(group, client)) {
-			return false;
-		}
-
-		int players[MAXPLAYERS];
-		int player = this.groups.GetArray(group, players);
-
-		player++;
-		players[player] = client;
-
-		this.groups.SetArray(group, players, player);
-		return true;
-	}
-
-	bool RemoveFromGroup(int group, int client) {
-		if (!this.IsInGroup(group, client)) {
-			return false;
-		}
-
-		int players[MAXPLAYERS];
-		int player = this.groups.GetArray(group, players);
-
-		for (int i = 0; i < player; i++) {
-			if (players[i] == client) {
-				players[i] = 0;
-				break;
-			}
-		}
-
-		this.groups.SetArray(group, players, player);
-		return true;
-	}
-
-	int GetGroupMember(int group) {
-		int players[MAXPLAYERS];
-		this.groups.GetArray(group, players);
-		return players[0];
-	}
-
-	void GetGroupMembers(int group, int[] players) {
-		this.groups.GetArray(group, players);
-	}
-
-	void RemoveGroup(int group) {
-		this.groups.Erase(group);
-	}
-
-	int GetTotalGroups() {
-		return this.groups.Length;
-	}
-
-	void Clear() {
-		this.groups.Clear();
-	}
-}
-
-Group g_Groups;
-
-enum struct GameState {
-	int track;		//The track that is currently being used.
-	Status status;	//Status of the mode.
-	Modes mode;		//Mode to use.
-	int countdown;	//Countdown from 3 to GO!
-	float timer;	//Timer while the race is active.
-	Handle ticker;	//The ticker to handle the race algorithm as a while.
-	bool paused;	//Whether the timer is paused or not.
-	int rounds;		//How many rounds have been played.
-	int group;		//The current group that is racing.
-
-	void Preparing() {
-		this.status = STATUS_PREPARING;
-		g_API.Call_OnStatusChange(this.status);
-
-		this.timer = convar_Preparation_Timer.FloatValue;
-		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-	}
-
-	void Ready() {
-		this.status = STATUS_READY;
-		g_API.Call_OnStatusChange(this.status);
-
-		this.countdown = convar_Racing_Countdown.IntValue;
-		this.timer = convar_Racing_Timer.FloatValue;
-
-		g_Groups.Clear();
-		this.group = 0;
-		
-		switch (this.mode) {
-			case MODE_SINGLES, MODE_GROUP: {
-				for (int i = 1; i <= MaxClients; i++) {
-					if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
-						continue;
-					}
-
-					g_Groups.AddPlayer(i);
-					PrintToChat(i, "%sYou have been added to queue in slot: %i", PLUGIN_TAG, i);
-				}
-			}
-			case MODE_TEAMS, MODE_GROUPTEAMS: {
-				int totalplayers = GetTotalPlayers();
-				float ratio = convar_Ratio.FloatValue;
-				int players = RoundToCeil(totalplayers * ratio);
-				int teams = totalplayers / players;
-
-				int clients[MAXPLAYERS];
-				int total;
-
-				for (int i = 0; i < teams; i++) {
-					total = 0;
-
-					for (int x = 0; x < players; x++) {
-						if ((clients[total++] = FindAvailablePlayer()) == -1) {
-							break;
-						}
-						PrintToChat(clients[total], "%sYou have been added to group: %i", PLUGIN_TAG, i);
-					}
-
-					g_Groups.AddGroup(clients, total);
-				}
-			}
-		}
-
-		PopQueue();
-
-		DeleteObjects();
-		SpawnObjects();
-		KickBots();
-
-		//Run code a frame after ready starts, mostly used to stop compile errors.
-		RequestFrame(Frame_DelayReady);
-	}
-
-	void Racing() {
-		this.status = STATUS_RACING;
-		g_API.Call_OnStatusChange(this.status);
-
-		switch (this.mode) {
-			case MODE_SINGLES: {
-				
-			}
-			case MODE_GROUP: {
-				//Unfreeze them so they can move again.
-				for (int i = 1; i <= MaxClients; i++) {
-					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
-						continue;
-					}
-
-					SetEntityMoveType(i, MOVETYPE_WALK);
-					SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
-				}
-			}
-			case MODE_TEAMS: {
-				
-			}
-			case MODE_GROUPTEAMS: {
-
-			}
-		}
-	}
-
-	void Finish() {
-		this.status = STATUS_FINISHED;
-		g_API.Call_OnStatusChange(this.status);
-		this.rounds++;
-
-		//Run code a frame after the race finishes, mostly used to stop compile errors.
-		RequestFrame(Frame_DelayFinish);
-
-		this.None();
-		if (convar_Rounds.IntValue > 0 && this.rounds >= convar_Rounds.IntValue) {
-			InitiateMapChooserVote(MapChange_Instant);
-		} else {
-			CreateTimer(10.0, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
-		}
-	}
-
-	void None() {
-		this.status = STATUS_NONE;
-		g_API.Call_OnStatusChange(this.status);
-
-		this.countdown = 0;
-		this.timer = 0.0;
-		StopTimer(this.ticker);
-		this.paused = false;
-	}
-}
-
-GameState g_State;
 
 int g_ModelIndex;
 int g_HaloIndex;
 
 TopMenu g_AdminMenu;
 TopMenuObject g_AdminMenuObj;
-
-enum struct Vote {
-	int track;	//The track we're voting on.
-	Menu menu;	//The menu handle itself.
-}
-
-Vote g_Vote;
-
-enum struct Player {
-	int client;			//The client index of the player.
-	int points;			//How many points the player has accumulated throughout the race total.
-	int currentnode;	//The current node the player is on in the track.
-	ArrayList speeds;	//Helpful for calculating averages in order to give points.
-	int team;			//The team the player is on if the mode is teams.
-	bool charging;		//Whether or not the player is charging.
-	float jumpdelay;	//The delay between jumps while charging.
-	bool hud;			//Whether the hud should be shown or not.
-	bool playing;		//Whether the player is playing or not.
-	bool finished;		//Has this player finished the race?
-	float time;			//How many precise seconds has it been since the race started?
-	int spawnent;		//The entity index of the prop or bot being created.
-
-	void Init(int client) {
-		this.client = client;
-		this.points = 0;
-		this.currentnode = 0;
-		this.SyncHud();
-		this.speeds = new ArrayList();
-		this.team = 0;
-		this.charging = false;
-		this.jumpdelay = 0.0;
-		this.hud = true;
-		this.finished = false;
-		this.time = 0.0;
-		this.spawnent = -1;
-	}
-
-	void SetPoints(int points) {
-		this.points = points;
-		this.SyncHud();
-	}
-
-	void AddPoints(int point) {
-		this.points += point;
-		this.SyncHud();
-	}
-
-	void RemovePoints(int point) {
-		this.points -= point;
-
-		if (this.points < 0) {
-			this.points = 0;
-		}
-
-		this.SyncHud();
-	}
-
-	void Clear() {
-		this.points = 0;
-		this.currentnode = 0;
-		this.SyncHud();
-	}
-
-	void SyncHud() {
-		if (!this.hud) {
-			return;
-		}
-
-		float x = -1.0;
-		float y = -1.0;
-		float holdTime = 99999.0;
-		int red = 255;
-		int green = 255;
-		int blue = 255;
-		int alpha = 255;
-		int effect;
-		float fxTime;
-		float fadeIn;
-		float fadeOut;
-
-		SetHudTextParams(x, y, holdTime, red, green, blue, alpha, effect, fxTime, fadeIn, fadeOut);
-
-		char sBuffer[256];
-
-		switch (g_State.mode) {
-			case MODE_SINGLES: {
-				int[] clients = new int[MaxClients]; int[] scores = new int[MaxClients];
-				int total = GetTopScores(MaxClients, clients, scores, true);
-				for (int i = 0; i < total; i++) {
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)\n", sBuffer, i + 1, clients[i], scores[i]);
-				}
-			}
-
-			case MODE_GROUP: {
-				int clients[5]; int scores[5];
-				int total = GetTopScores(5, clients, scores);
-				for (int i = 0; i < total; i++) {
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)\n", sBuffer, i + 1, clients[i], scores[i]);
-				}
-			}
-
-			case MODE_TEAMS: {
-				int score1 = GetChargerTeamScore(1);
-				int score2 = GetChargerTeamScore(2);
-				FormatEx(sBuffer, sizeof(sBuffer), "Team: #1 (%i)\nTeam: #2 (%i)", score1, score2);
-			}
-
-			case MODE_GROUPTEAMS: {
-
-			}
-		}
-
-		GameRules_SetPropString("m_szScriptedHUDStringSet", sBuffer, false, 0);
-
-		Panel panel = new Panel();
-		char sTime[64];
-		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
-		char sTitle[256]; FormatEx(sTitle, sizeof(sTitle), "Leaderboard (Points: %i) (%s)", this.points, sTime);
-		panel.SetTitle(sTitle);
-		panel.DrawText("----------------");
-		panel.DrawText(sBuffer);
-		panel.Send(this.client, MenuAction_Void, MENU_TIME_FOREVER);
-		delete panel;
-	}
-
-	void CacheSpeed() {
-		float speed = GetSpeed(this.client);
-		this.speeds.Push(speed);
-	}
-
-	float GetAverageSpeed() {
-		int cached = this.speeds.Length;
-		if (cached == 0) {
-			return 0.0;
-		}
-
-		float total;
-		for (int i = 0; i < cached; i++) {
-			total += this.speeds.Get(i);
-		}
-
-		if (total == 0.0) {
-			return 0.0;
-		}
-
-		float average = total / float(cached);
-
-		return average;
-	}
-
-	float GetTime() {
-		return GetGameTime() - this.time;
-	}
-
-	void Delete() {
-		this.client = 0;
-		this.points = 0;
-		this.currentnode = 0;
-		delete this.speeds;
-		this.team = 0;
-		this.charging = false;
-		this.jumpdelay = 0.0;
-		this.hud = true;
-		this.finished = false;
-		this.time = 0.0;
-		this.spawnent = -1;
-	}
-}
-
-public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2) {
-	return 0;
-}
 
 Player g_Player[MAXPLAYERS + 1];
 Track g_CreatingTrack[MAXPLAYERS + 1];
@@ -754,64 +84,24 @@ int g_NewNode[MAXPLAYERS + 1] = {NO_NODE, ...};
 
 Handle g_hSDK_OnPummelEnded;
 
-//The action to take when managing tracks through the commands and menus.
-enum TrackAction {
-	Action_Create,	//We're creating a new track.
-	Action_Delete,	//We're deleting this track entirely.
-	Action_Edit,	//We're editing this track.
-	Action_Set		//We're setting the current track.
-}
-
 Cookie g_Cookie_Hud;
 
-enum struct Points {
-	StringMap data;
-
-	void Init() {
-		this.data = new StringMap();
-	}
-
-	void Set(Modes mode, const char[] key, int value) {
-		char buffer[256];
-		FormatEx(buffer, sizeof(buffer), "%i-%s", mode, key);
-		this.data.SetValue(buffer, value);
-	}
-
-	int Get(Modes mode, const char[] key) {
-		char buffer[256];
-		FormatEx(buffer, sizeof(buffer), "%i-%s", mode, key);
-		int value;
-		this.data.GetValue(buffer, value);
-		return value;
-	}
-
-	void Clear() {
-		this.data.Clear();
-	}
-}
-
-Points g_Points;
-
-enum struct Command {
-	char command[64];
-	char description[64];
-	int adminFlags;
-
-	void Set(const char[] command, const char[] description, int adminFlags) {
-		strcopy(this.command, sizeof(Command::command), command);
-		strcopy(this.description, sizeof(Command::description), description);
-		this.adminFlags = adminFlags;
-	}
-}
-
-Command g_Command[MAX_COMMANDS + 1];
-int g_TotalCommands;
+//Sub-Plugins
+#include "charger-racing/api.sp"
+#include "charger-racing/commands.sp"
+#include "charger-racing/gamestate.sp"
+#include "charger-racing/groups.sp"
+#include "charger-racing/objects.sp"
+#include "charger-racing/players.sp"
+#include "charger-racing/points.sp"
+#include "charger-racing/tracks.sp"
+#include "charger-racing/votes.sp"
 
 public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.5 [Alpha Dev]",
+	version = "1.0.6 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -1516,11 +806,6 @@ void IsNearNode(int client, int index) {
 		return;
 	}
 
-	//If a player tries to take an unintended shortcut then stop progress.
-	if (g_Player[client].currentnode != (index - 1)) {
-		return;
-	}
-
 	//If we're at the first node, we're at the starting line.
 	if (index == 0) {
 		IsNearStart(client);
@@ -1531,14 +816,22 @@ void IsNearNode(int client, int index) {
 		return;
 	}
 
+	//If a player tries to take an unintended shortcut then stop progress.
+	if (g_Player[client].currentnode < (index - 1)) {
+		int points = g_Points.Get(g_State.mode, "skipping-checkpoint");
+		g_Player[client].AddPoints(points);
+		PrintToChat(client, "%sYou have lost %i points for skipping a node.", PLUGIN_TAG, points);
+		return;
+	}
+
 	g_Player[client].currentnode = index;
 	//PrintHintText(client, "Node %i reached!", index);
 
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
-	float average = g_Player[client].GetAverageSpeed();
-	int points = RoundToCeil(average) / 5;
+	//float average = g_Player[client].GetAverageSpeed();
+	//int points = RoundToCeil(average) / 5;
+	int points = g_Points.Get(g_State.mode, "checkpoint");
 	g_Player[client].speeds.Clear();
-	PrintToChat(client, "%sYou reached node %i and gained %i points.", PLUGIN_TAG, index, points);
 
 	//If we're carrying a survivor, give our points a multiplier.
 	if (L4D2_GetInfectedAttacker(client) != -1) {
@@ -1547,6 +840,7 @@ void IsNearNode(int client, int index) {
 
 	//Give the points and update the hud.
 	g_Player[client].AddPoints(points);
+	PrintToChat(client, "%sYou reached node %i and gained %i points.", PLUGIN_TAG, index, points);
 }
 
 void IsNearStart(int client) {
@@ -1568,6 +862,52 @@ void IsNearFinish(int client) {
 	PrintToChat(client, "%sYour time was %s and your score is %i.", PLUGIN_TAG, sTime, g_Player[client].points);
 
 	if (AllPlayersFinished()) {
+		switch (g_State.mode) {
+			case MODE_SINGLES, MODE_GROUP: {
+				int winner = GetWinnerForSingles();
+
+				if (winner == -1) {
+					PrintToChatAll("No winning player could be determined.");
+				} else {
+					int points = g_Points.Get(g_State.mode, "winner");
+
+					if (L4D2_GetInfectedAttacker(winner) != -1) {
+						points += g_Points.Get(g_State.mode, "survivor");
+					}
+					
+					g_Player[winner].AddPoints(points);
+					
+					PrintToChatAll("%N has won the race with %i points.", winner, g_Player[winner].points);
+				}
+			}
+			case MODE_TEAMS, MODE_GROUPTEAMS: {
+				int group = GetWinnerGroup();
+				
+				if (group == -1) {
+					PrintToChatAll("No winning team could be determined.");
+				} else {
+					int[] players = new int[MaxClients];
+					g_Groups.GetGroupMembers(group, players);
+
+					int points = g_Points.Get(g_State.mode, "winner");
+
+					int total; int temp;
+					for (int i = 0; i <= MaxClients; i++) {
+						temp = points;
+
+						if (L4D2_GetInfectedAttacker(i) != -1) {
+							temp += g_Points.Get(g_State.mode, "survivor");
+						}
+
+						g_Player[players[i]].AddPoints(temp);
+						total += g_Player[players[i]].points;
+					}
+
+					PrintToChatAll("Team %i has won the race with %i points.", group, total);
+				}
+			}
+		}
+
 		g_State.Finish();
 		g_API.Call_OnEndRace();
 	} else {
@@ -1575,6 +915,58 @@ void IsNearFinish(int client) {
 			PopQueue();
 		}
 	}
+}
+
+int GetWinnerForSingles() {
+	int winner;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || !g_Player[i].playing) {
+			continue;
+		}
+
+		if (winner == 0) {
+			winner = i;
+			continue;
+		}
+
+		if (g_Player[i].points > g_Player[winner].points) {
+			winner = i;
+		}
+	}
+
+	return winner;
+}
+
+int GetWinnerGroup() {
+	int winner;
+	int winnerpoints;
+	int points;
+
+	for (int group = 0; group < g_Groups.GetTotalGroups(); group++) {
+		points = 0;
+
+		for (int i = 1; i <= MaxClients; i++) {
+			if (!IsClientInGame(i) || !g_Groups.IsInGroup(group, i)) {
+				continue;
+			}
+
+			points += g_Player[i].points;
+		}
+
+		if (winner == 0) {
+			winner = group;
+			winnerpoints = points;
+			continue;
+		}
+
+		if (points > winnerpoints) {
+			winner = group;
+			winnerpoints = points;
+		}
+	}
+
+	return winner;
 }
 
 bool AllPlayersFinished() {
@@ -3655,6 +3047,50 @@ Modes GetMode(const char[] name) {
 	return view_as<Modes>(-1);
 }
 
+bool SetStatus(Status status) {
+	switch (status) {
+		case STATUS_NONE: {
+			g_State.status = STATUS_NONE;
+			g_API.Call_OnStatusChange(g_State.status);
+			return true;
+		}
+		case STATUS_PREPARING: {
+			if (g_State.status == STATUS_NONE) {
+				g_State.Preparing();
+				g_API.Call_OnStatusChange(g_State.status);
+				return true;
+			}
+			return false;
+		}
+		case STATUS_READY: {
+			if (g_State.status == STATUS_PREPARING) {
+				g_State.Ready();
+				g_API.Call_OnStatusChange(g_State.status);
+				return true;
+			}
+			return false;
+		}
+		case STATUS_RACING: {
+			if (g_State.status == STATUS_READY) {
+				g_State.Racing();
+				g_API.Call_OnStatusChange(g_State.status);
+				return true;
+			}
+			return false;
+		}
+		case STATUS_FINISHED: {
+			if (g_State.status == STATUS_RACING) {
+				g_State.Finish();
+				g_API.Call_OnStatusChange(g_State.status);
+				return true;
+			}
+			return false;
+		}
+	}
+
+	return false;
+}
+
 public Action Command_SpawnProp(int client, int args) {
 	if (!IsModeEnabled()) {
 		return Plugin_Continue;
@@ -4188,7 +3624,7 @@ void PopQueue() {
 		ChangeClientTeam(i, view_as<int>(L4DTeam_Spectator));
 	}
 
-	int players[MAXPLAYERS];
+	int[] players = new int[MaxClients];
 	switch (g_State.mode) {
 		case MODE_SINGLES, MODE_TEAMS: {
 			//One at a time.
@@ -4199,7 +3635,7 @@ void PopQueue() {
 			//All at once.
 			for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
 				g_Groups.GetGroupMembers(i, players);
-				for (int j = 0; j < MAXPLAYERS; j++) {
+				for (int j = 0; j <= MaxClients; j++) {
 					if (players[j] == 0) {
 						continue;
 					}
@@ -4272,4 +3708,8 @@ int FindAvailablePlayer() {
 	}
 
 	return clients[GetRandomInt(0, total - 1)];
+}
+
+public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2) {
+	return 0;
 }
