@@ -144,3 +144,18 @@ enum struct Object {
 		this.skin = 0;
 	}
 }
+
+enum struct ObjModel {
+	char name[64];
+	char path[PLATFORM_MAX_PATH];
+
+	void Set(const char[] name, const char[] path) {
+		strcopy(this.name, sizeof(ObjModel::name), name);
+		strcopy(this.path, sizeof(ObjModel::path), path);
+	}
+
+	void Clear() {
+		this.name[0] = '\0';
+		this.path[0] = '\0';
+	}
+}

@@ -20,6 +20,7 @@
 #define NO_TRACK -1 	//This is the corresponding index for data to know that this track either doesn't exist, is invalid, or is not set.
 #define NO_NODE -1 		//This is the corresponding index for data to know that this node either doesn't exist, is invalid, or is not set.
 #define DEFAULT_OBJECT "models/props_fortifications/orange_cone001_clientside.mdl"
+#define MAX_MODELS 256
 
 #define MODEL_FRANCIS "models/survivors/survivor_biker.mdl"
 #define MODEL_LOUIS "models/survivors/survivor_manager.mdl"
@@ -50,7 +51,7 @@ ConVar convar_Spawns_Infected;
 
 //General
 char g_TracksPath[PLATFORM_MAX_PATH];
-char g_PointsConfig[PLATFORM_MAX_PATH];
+char g_ConfigsFolder[PLATFORM_MAX_PATH];
 bool g_LateLoad;
 
 API g_API;
@@ -62,6 +63,9 @@ Vote g_Vote;
 Object g_Objects[MAX_OBJECTS + 1];
 int g_TotalObjects;
 Object g_SpawningObjects[MAXPLAYERS + 1];
+
+ObjModel g_Model[MAX_MODELS + 1];
+int g_TotalModels;
 
 Command g_Command[MAX_COMMANDS + 1];
 int g_TotalCommands;
@@ -101,7 +105,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.6 [Alpha Dev]",
+	version = "1.0.7 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -411,13 +415,16 @@ public void OnConfigsExecuted() {
 
 	g_State.Preparing();
 
-	BuildPath(Path_SM, g_PointsConfig, sizeof(g_PointsConfig), "configs/charger-racing-64/");
-	if (!DirExists(g_PointsConfig)) {
-		CreateDirectory(g_PointsConfig, 511);
+	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing-64/");
+	if (!DirExists(g_ConfigsFolder)) {
+		CreateDirectory(g_ConfigsFolder, 511);
 	}
 
-	StrCat(g_PointsConfig, sizeof(g_PointsConfig), "/points.cfg");
-	ParsePoints(g_PointsConfig);
+	char sPath[PLATFORM_MAX_PATH];
+	FormatEx(sPath, sizeof(sPath), "%s/points.cfg", g_ConfigsFolder);
+	ParsePoints(sPath);
+	FormatEx(sPath, sizeof(sPath), "%s/models.cfg", g_ConfigsFolder);
+	ParseModels(sPath);
 }
 
 void ParsePoints(const char[] file) {
@@ -453,6 +460,38 @@ void ParsePoints(const char[] file) {
 
 	delete kv;
 	LogMessage("Parsed points from file: %s", file);
+}
+
+void ParseModels(const char[] file) {
+	for (int i = 0; i < MAX_MODELS; i++) {
+		g_Model[i].Clear();
+	}
+	g_TotalModels = 0;
+
+	KeyValues kv = new KeyValues("models");
+
+	if (kv.ImportFromFile(file) && kv.GotoFirstSubKey()) {
+		char name[64]; char model[PLATFORM_MAX_PATH];
+		do {
+			kv.GetSectionName(name, sizeof(name));
+			kv.GetString(NULL_STRING, model, sizeof(model));
+
+			if (strlen(name) == 0 || strlen(model) == 0) {
+				continue;
+			}
+
+			if (StrContains(model, ".mdl", false) == -1) {
+				StrCat(model, sizeof(model), ".mdl");
+			}
+
+			g_Model[g_TotalModels++].Set(name, model);
+			PrecacheModel(model);
+
+		} while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Parsed %i models from file: %s", g_TotalModels, file);
 }
 
 public void OnMapStart() {
@@ -3288,8 +3327,12 @@ public int MenuHandler_SpawnPropAngles(Menu menu, MenuAction action, int param1,
 void OpenSpawnPropModelMenu(int client) {
 	Menu menu = new Menu(MenuHandler_SpawnPropModel);
 	menu.SetTitle("Select a model:");
-
+	
 	menu.AddItem(DEFAULT_OBJECT, "Traffic Cone");
+
+	for (int i = 0; i < g_TotalModels; i++) {
+		menu.AddItem(g_Model[i].path, g_Model[i].name);
+	}
 
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
