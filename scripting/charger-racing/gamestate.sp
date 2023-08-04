@@ -16,15 +16,12 @@ enum struct GameState {
 		this.timer = convar_Preparation_Timer.FloatValue;
 		StopTimer(this.ticker);
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+
+		SpawnObjects();
+		KickBots();
 	}
 
-	void Ready() {
-		this.status = STATUS_READY;
-		g_API.Call_OnStatusChange(this.status);
-
-		this.countdown = convar_Racing_Countdown.IntValue;
-		this.timer = convar_Racing_Timer.FloatValue;
-
+	void SetupGroups() {
 		g_Groups.Clear();
 		this.group = 0;
 		
@@ -62,10 +59,17 @@ enum struct GameState {
 				}
 			}
 		}
+	}
+
+	void Ready() {
+		this.status = STATUS_READY;
+		g_API.Call_OnStatusChange(this.status);
+
+		this.countdown = convar_Racing_Countdown.IntValue;
+		this.timer = convar_Racing_Timer.FloatValue;
 
 		PopQueue();
 
-		DeleteObjects();
 		SpawnObjects();
 		KickBots();
 
@@ -77,27 +81,13 @@ enum struct GameState {
 		this.status = STATUS_RACING;
 		g_API.Call_OnStatusChange(this.status);
 
-		switch (this.mode) {
-			case MODE_SINGLES: {
-				
+		for (int i = 1; i <= MaxClients; i++) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+				continue;
 			}
-			case MODE_GROUP: {
-				//Unfreeze them so they can move again.
-				for (int i = 1; i <= MaxClients; i++) {
-					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
-						continue;
-					}
 
-					SetEntityMoveType(i, MOVETYPE_WALK);
-					SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
-				}
-			}
-			case MODE_TEAMS: {
-				
-			}
-			case MODE_GROUPTEAMS: {
-
-			}
+			SetEntityMoveType(i, MOVETYPE_WALK);
+			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
 		}
 	}
 

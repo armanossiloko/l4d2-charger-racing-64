@@ -105,7 +105,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.8 [Alpha Dev]",
+	version = "1.0.9 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -184,6 +184,7 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
 
 	//General
+	g_State.track = NO_TRACK;
 	g_State.Preparing();
 	g_Points.Init();
 	g_Groups.Init();
@@ -410,6 +411,10 @@ public void OnConfigsExecuted() {
 			}
 		}
 
+		if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
+			SetTrack(0);
+		}
+
 		//Kick the bots on live load if there is any and set the state of the game to preparing.
 		KickBots();
 	}
@@ -428,16 +433,19 @@ public void OnConfigsExecuted() {
 	}
 
 	char sPath[PLATFORM_MAX_PATH];
-	FormatEx(sPath, sizeof(sPath), "%s/points.cfg", g_ConfigsFolder);
+
+	FormatEx(sPath, sizeof(sPath), "%spoints.cfg", g_ConfigsFolder);
 	ParsePoints(sPath);
-	FormatEx(sPath, sizeof(sPath), "%s/models.cfg", g_ConfigsFolder);
+
+	FormatEx(sPath, sizeof(sPath), "%smodels.cfg", g_ConfigsFolder);
 	ParseModels(sPath);
 }
 
 void ParsePoints(const char[] file) {
 	g_Points.Clear();
 
-	KeyValues kv = new KeyValues("racing-points");
+	KeyValues kv = new KeyValues("points");
+	int total;
 
 	if (kv.ImportFromFile(file) && kv.GotoFirstSubKey()) {
 		char mode[64]; Modes index;
@@ -456,6 +464,7 @@ void ParsePoints(const char[] file) {
 					kv.GetSectionName(key, sizeof(key));
 					value = kv.GetNum(NULL_STRING);
 					g_Points.Set(index, key, value);
+					total++;
 				} while (kv.GotoNextKey(false));
 
 				kv.GoBack();
@@ -466,7 +475,8 @@ void ParsePoints(const char[] file) {
 	}
 
 	delete kv;
-	LogMessage("Parsed points from file: %s", file);
+	LogMessage("Parsed %i point values from file: %s", total, file);
+	PrintToServer("Parsed %i point values from file: %s", total, file);
 }
 
 void ParseModels(const char[] file) {
@@ -499,6 +509,7 @@ void ParseModels(const char[] file) {
 
 	delete kv;
 	LogMessage("Parsed %i models from file: %s", g_TotalModels, file);
+	PrintToServer("Parsed %i models from file: %s", g_TotalModels, file);
 }
 
 public void OnMapStart() {
@@ -542,7 +553,6 @@ void ParseTracks(const char[] file) {
 	g_TotalTracks = 0;
 
 	if (!FileExists(file)) {
-		LogError("File does not exist: %s", file);
 		return;
 	}
 
@@ -582,6 +592,7 @@ void ParseTracks(const char[] file) {
 
 	delete kv;
 	LogMessage("Parsed %d tracks from file: %s", g_TotalTracks, file);
+	PrintToServer("Parsed %d tracks from file: %s", g_TotalTracks, file);
 }
 
 void SaveTracks(const char[] file) {
@@ -620,6 +631,7 @@ void SaveTracks(const char[] file) {
 
 	delete kv;
 	LogMessage("Saving %d tracks to file: %s", g_TotalTracks, file);
+	PrintToServer("Saving %d tracks to file: %s", g_TotalTracks, file);
 }
 
 public Action Command_ReloadTracks(int client, int args) {
@@ -651,7 +663,7 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 	SetTrack(NO_TRACK);
 
 	//If we have any available tracks on the map, just pick the 1st one.
-	if (g_TotalTracks > 0) {
+	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
 		g_State.track = 0;
 		g_API.Call_OnTrackSet(g_State.track);
 	}
@@ -873,7 +885,7 @@ void IsNearNode(int client, int index) {
 		return;
 	}
 
-	//If we're at the first node, we're at the finish line.
+	//If we're at the last node, we're at the finish line.
 	if (index == g_Tracks[g_State.track].GetTotalNodes() - 1) {
 		IsNearFinish(client);
 		return;
@@ -884,26 +896,29 @@ void IsNearNode(int client, int index) {
 		int points = g_Points.Get(g_State.mode, "skipping-checkpoint");
 		g_Player[client].AddPoints(points);
 		PrintToChat(client, "%sYou have lost %i points for skipping a node.", PLUGIN_TAG, points);
+		g_Player[client].currentnode = index;
 		return;
 	}
-
-	g_Player[client].currentnode = index;
-	//PrintHintText(client, "Node %i reached!", index);
 
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
 	//float average = g_Player[client].GetAverageSpeed();
 	//int points = RoundToCeil(average) / 5;
-	int points = g_Points.Get(g_State.mode, "checkpoint");
-	g_Player[client].speeds.Clear();
+	if (g_Player[client].currentnode != index) {
+		int points = g_Points.Get(g_State.mode, "checkpoint");
+		g_Player[client].speeds.Clear();
 
-	//If we're carrying a survivor, give our points a multiplier.
-	if (L4D2_GetInfectedAttacker(client) != -1) {
-		points *= 1.20;
+		//If we're carrying a survivor, give our points a multiplier.
+		if (L4D2_GetInfectedAttacker(client) != -1) {
+			points *= 1.20;
+		}
+
+		//Give the points and update the hud.
+		g_Player[client].AddPoints(points);
+		PrintToChat(client, "%sYou reached node %i and gained %i points.", PLUGIN_TAG, index, points);
+
+		g_Player[client].currentnode = index;
+		//PrintHintText(client, "Node %i reached!", index);
 	}
-
-	//Give the points and update the hud.
-	g_Player[client].AddPoints(points);
-	PrintToChat(client, "%sYou reached node %i and gained %i points.", PLUGIN_TAG, index, points);
 }
 
 void IsNearFinish(int client) {
@@ -920,6 +935,14 @@ void IsNearFinish(int client) {
 	ForcePlayerSuicide(client);
 	PrintToChat(client, "%sYour time was %s and your score is %i.", PLUGIN_TAG, sTime, g_Player[client].points);
 
+	int points = g_Points.Get(g_State.mode, "finished");
+
+	if (L4D2_GetInfectedAttacker(client) != -1) {
+		points += g_Points.Get(g_State.mode, "survivor");
+	}
+
+	g_Player[client].AddPoints(points);
+
 	if (AllPlayersFinished()) {
 		switch (g_State.mode) {
 			case MODE_SINGLES, MODE_GROUP: {
@@ -928,7 +951,7 @@ void IsNearFinish(int client) {
 				if (winner == -1) {
 					PrintToChatAll("No winning player could be determined.");
 				} else {
-					int points = g_Points.Get(g_State.mode, "winner");
+					points = g_Points.Get(g_State.mode, "winner");
 
 					if (L4D2_GetInfectedAttacker(winner) != -1) {
 						points += g_Points.Get(g_State.mode, "survivor");
@@ -948,7 +971,7 @@ void IsNearFinish(int client) {
 					int[] players = new int[MaxClients];
 					g_Groups.GetGroupMembers(group, players);
 
-					int points = g_Points.Get(g_State.mode, "winner");
+					points = g_Points.Get(g_State.mode, "winner");
 
 					int total; int temp;
 					for (int i = 0; i <= MaxClients; i++) {
@@ -1569,7 +1592,9 @@ public Action Command_StartRace(int client, int args) {
 		return Plugin_Continue;
 	}
 
+	g_State.SetupGroups();
 	g_State.Ready();
+
 	PrintToChatAll("%s%N has started the race.", PLUGIN_TAG, client);
 
 	return Plugin_Handled;
@@ -1611,6 +1636,7 @@ public Action Timer_Tick(Handle timer) {
 		}
 
 		if (g_State.timer <= 0.0) {
+			g_State.SetupGroups();
 			g_State.Ready();
 		}
 		
@@ -2907,6 +2933,7 @@ void KickBots() {
 	DeleteItems();
 	DeleteDoors();
 	DeleteInfected();
+	DeleteElevators();
 }
 
 void DeleteItems() {
@@ -2960,6 +2987,17 @@ void DeleteInfected() {
 
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "infected")) != -1) {
+		RemoveEntity(entity);
+	}
+}
+
+void DeleteElevators() {
+	if (!convar_Spawns_Infected.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_elevator")) != -1) {
 		RemoveEntity(entity);
 	}
 }
@@ -3154,6 +3192,7 @@ bool SetStatus(Status status) {
 		}
 		case STATUS_READY: {
 			if (g_State.status == STATUS_PREPARING) {
+				g_State.SetupGroups();
 				g_State.Ready();
 				g_API.Call_OnStatusChange(g_State.status);
 				return true;
@@ -3531,11 +3570,14 @@ void ParseObjects(const char[] file, int track) {
 
 	delete kv;
 	LogMessage("Parsed %d objects from file: %s", g_TotalObjects, file);
+	PrintToServer("Parsed %d objects from file: %s", g_TotalObjects, file);
 
 	SpawnObjects();
 }
 
 void SpawnObjects() {
+	DeleteObjects();
+
 	if (g_TotalObjects == 0) {
 		return;
 	}
@@ -3711,7 +3753,7 @@ public Action Timer_Prepare(Handle timer) {
 
 void PopQueue() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || IsFakeClient(i)) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || L4D_GetClientTeam(i) != L4DTeam_Spectator) {
 			continue;
 		}
 
@@ -3724,18 +3766,28 @@ void PopQueue() {
 			//One at a time.
 			g_Groups.GetGroupMembers(g_State.group, players);
 			g_State.group++;
+
+			for (int j = 0; j < MaxClients; j++) {
+				if (players[j] == 0) {
+					continue;
+				}
+
+				ChangeClientTeam(players[j], view_as<int>(L4DTeam_Infected));
+				PrintToChat(players[j], "You're UP!");
+			}
 		}
 		case MODE_GROUP, MODE_GROUPTEAMS: {
 			//All at once.
 			for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
 				g_Groups.GetGroupMembers(i, players);
 
-				for (int j = 0; j <= MaxClients; j++) {
+				for (int j = 0; j < MaxClients; j++) {
 					if (players[j] == 0) {
 						continue;
 					}
 
 					ChangeClientTeam(players[j], view_as<int>(L4DTeam_Infected));
+					PrintToChat(players[j], "You're UP!");
 				}
 			}
 		}
@@ -3755,11 +3807,15 @@ void PopQueue() {
 
 		if (teleport) {
 			TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
+		} else {
+			TeleportToSurvivorPos(i);
 		}
 
 		SetEntityMoveType(i, MOVETYPE_NONE);
 		SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
 	}
+
+	g_State.Ready();
 }
 
 int GetTotalPlayers() {

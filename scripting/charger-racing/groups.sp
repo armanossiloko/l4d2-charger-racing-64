@@ -2,12 +2,13 @@ enum struct Group {
 	ArrayList groups;
 
 	void Init() {
-		this.groups = new ArrayList(MAXPLAYERS);
+		this.groups = new ArrayList(MaxClients);
 	}
 
 	void AddPlayer(int client) {
-		int players[1]; players[0] = client;
-		this.AddGroup(players, 1);
+		int[] players = new int[MaxClients];
+		players[0] = client;
+		this.AddGroup(players, MaxClients);
 	}
 
 	void AddGroup(int[] players, int totalplayers) {
@@ -15,7 +16,7 @@ enum struct Group {
 	}
 
 	bool IsInGroup(int group, int client) {
-		int players[MAXPLAYERS];
+		int[] players = new int[MaxClients];
 		int player = this.groups.GetArray(group, players);
 
 		for (int i = 0; i < player; i++) {
@@ -32,7 +33,7 @@ enum struct Group {
 			return false;
 		}
 
-		int players[MAXPLAYERS];
+		int[] players = new int[MaxClients];
 		int player = this.groups.GetArray(group, players);
 
 		player++;
@@ -47,7 +48,7 @@ enum struct Group {
 			return false;
 		}
 
-		int players[MAXPLAYERS];
+		int[] players = new int[MaxClients];
 		int player = this.groups.GetArray(group, players);
 
 		for (int i = 0; i < player; i++) {
@@ -62,13 +63,13 @@ enum struct Group {
 	}
 
 	int GetGroupMember(int group) {
-		int players[MAXPLAYERS];
+		int[] players = new int[MaxClients];
 		this.groups.GetArray(group, players);
 		return players[0];
 	}
 
-	void GetGroupMembers(int group, int[] players) {
-		this.groups.GetArray(group, players);
+	int GetGroupMembers(int group, int[] players) {
+		return this.groups.GetArray(group, players);
 	}
 
 	void RemoveGroup(int group) {
