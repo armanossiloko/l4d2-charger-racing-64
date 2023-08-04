@@ -14,6 +14,7 @@ enum struct GameState {
 		g_API.Call_OnStatusChange(this.status);
 
 		this.timer = convar_Preparation_Timer.FloatValue;
+		StopTimer(this.ticker);
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	}
 
@@ -110,7 +111,7 @@ enum struct GameState {
 
 		this.None();
 		if (convar_Rounds.IntValue > 0 && this.rounds >= convar_Rounds.IntValue) {
-			InitiateMapChooserVote(MapChange_Instant);
+			//InitiateMapChooserVote(MapChange_Instant);
 		} else {
 			CreateTimer(10.0, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
 		}

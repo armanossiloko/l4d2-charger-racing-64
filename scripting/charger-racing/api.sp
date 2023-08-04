@@ -19,7 +19,7 @@ enum struct API {
 		this.onEndRace = new GlobalForward("ChargerRacing_OnEndRace", ET_Ignore);
 		this.onPlayerStart = new GlobalForward("ChargerRacing_OnPlayerStart", ET_Ignore, Param_Cell);
 		this.onPlayerFinish = new GlobalForward("ChargerRacing_OnPlayerFinish", ET_Ignore, Param_Cell);
-		this.onTrackSet = new GlobalForward("ChargerRacing_OnTrackSet", ET_Ignore);
+		this.onTrackSet = new GlobalForward("ChargerRacing_OnTrackSet", ET_Ignore, Param_Cell);
 		this.onStatusChange = new GlobalForward("ChargerRacing_OnStatusChange", ET_Ignore, Param_Cell);
 	}
 

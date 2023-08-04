@@ -8,7 +8,6 @@
 #include <adminmenu>
 #include <clientprefs>
 #include <left4dhooks>
-#include <mapchooser>
 
 #include <charger_racing_64>
 
@@ -48,6 +47,7 @@ ConVar convar_Ratio;
 ConVar convar_Spawns_Items;
 ConVar convar_Spawns_Doors;
 ConVar convar_Spawns_Infected;
+ConVar convar_Track_Culling;
 
 //General
 char g_TracksPath[PLATFORM_MAX_PATH];
@@ -105,7 +105,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.7 [Alpha Dev]",
+	version = "1.0.8 [Alpha Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -139,6 +139,7 @@ public void OnPluginStart() {
 	convar_Spawns_Items = CreateConVar("sm_l4d2_charger_racing_64_spawns_items", "1", "Should the items be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_64_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_64_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Track_Culling = CreateConVar("sm_l4d2_charger_racing_64_track_culling", "5000.0", "After what distance from the player should the track no longer draw?", FCVAR_NOTIFY, true, 0.0);
 	//AutoExecConfig();
 
 	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
@@ -151,6 +152,7 @@ public void OnPluginStart() {
 	//Events
 	HookEvent("round_start", Event_OnRoundStart);
 	HookEvent("player_spawn", Event_OnPlayerSpawn);
+	HookEvent("player_team", Event_OnPlayerTeam);
 	HookEvent("player_death", Event_OnPlayerDeath);
 	HookEvent("charger_charge_start", Event_OnChargeStart);
 	HookEvent("charger_charge_end", Event_OnChargeEnd);
@@ -216,7 +218,7 @@ public void OnPluginStart() {
 	g_Cookie_Hud = new Cookie("l4d2-charger-racing-64-hud", "Should the hud be shown or not?", CookieAccess_Public);
 
 	//Second ticker and chat print
-	CreateTimer(1.0, Timer_Ticker, _, TIMER_REPEAT);
+	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
 	PrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
 }
 
@@ -326,7 +328,7 @@ public void OnInfectedSpawnsChanged(ConVar convar, const char[] oldValue, const 
 	}
 }
 
-public Action Timer_Ticker(Handle timer) {
+public Action Timer_Seconds(Handle timer) {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && !IsFakeClient(i)) {
 			g_Player[i].SyncHud();
@@ -384,6 +386,7 @@ public void OnConfigsExecuted() {
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("sb_dont_shoot").BoolValue = true;
 	FindConVar("director_no_survivor_bots").BoolValue = true;
+	FindConVar("vs_max_team_switches").IntValue = 999;
 
 	if (g_LateLoad) {
 		g_LateLoad = false;
@@ -394,12 +397,16 @@ public void OnConfigsExecuted() {
 				OnClientConnected(i);
 			}
 
-			if (IsClientInGame(i)) {
-				OnClientPutInServer(i);
-			}
-
 			if (AreClientCookiesCached(i)) {
 				OnClientCookiesCached(i);
+			}
+
+			if (IsClientInGame(i)) {
+				OnClientPutInServer(i);
+
+				if (IsPlayerAlive(i)) {
+					CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(i), TIMER_FLAG_NO_MAPCHANGE);
+				}
 			}
 		}
 
@@ -705,6 +712,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	float Amplitude = 0.0;
 	int Speed = 0;
 
+	float pos[3];
+	GetClientEyePosition(client, pos);
+
+	float cull_distance = convar_Track_Culling.FloatValue;
+
 	// Shows the track you're creating but not an actual live track.
 	if (g_CreatingTrack[client].nodes != null) {
 		
@@ -719,6 +731,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 			g_CreatingTrack[client].GetNodeOrigin(i, origin);
 			g_CreatingTrack[client].GetNode((i+1), origin2, color);
+
+			if (GetVectorDistance(origin, pos) >= cull_distance || GetVectorDistance(origin2, pos) >= cull_distance) {
+				continue;
+			}
 
 			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
 			TE_SendToClient(client);
@@ -745,6 +761,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			if (g_EditingNode[client] == i) {
 				origin[2] += 25.0;
 				origin2[2] += 25.0;
+			}
+
+			if (GetVectorDistance(origin, pos) >= cull_distance || GetVectorDistance(origin2, pos) >= cull_distance) {
+				continue;
 			}
 
 			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
@@ -775,6 +795,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		for (int i = 0; i < length; i++) {
 			g_Tracks[track].GetNodeOrigin(i, origin);
 
+			if (GetVectorDistance(origin, pos) >= cull_distance) {
+				continue;
+			}
+
 			//Show the ring for the start and end of the track.
 			if (i == 0) {
 				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, start_color, Speed, 0);
@@ -789,6 +813,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 
 			g_Tracks[track].GetNode((i+1), origin2, color);
+
+			if (GetVectorDistance(origin2, pos) >= cull_distance) {
+				continue;
+			}
 
 			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
 			TE_SendToClient(client);
@@ -845,12 +873,8 @@ void IsNearNode(int client, int index) {
 		return;
 	}
 
-	//If we're at the first node, we're at the starting line.
-	if (index == 0) {
-		IsNearStart(client);
-		return;
 	//If we're at the first node, we're at the finish line.
-	} else if (index == g_Tracks[g_State.track].GetTotalNodes() - 1) {
+	if (index == g_Tracks[g_State.track].GetTotalNodes() - 1) {
 		IsNearFinish(client);
 		return;
 	}
@@ -880,10 +904,6 @@ void IsNearNode(int client, int index) {
 	//Give the points and update the hud.
 	g_Player[client].AddPoints(points);
 	PrintToChat(client, "%sYou reached node %i and gained %i points.", PLUGIN_TAG, index, points);
-}
-
-void IsNearStart(int client) {
-	PrintToChat(client, "%sYou are at the starting line!", PLUGIN_TAG);
 }
 
 void IsNearFinish(int client) {
@@ -1253,7 +1273,12 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	}
 
 	g_Player[client].charging = false;
-	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.2, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+
+	//If someone spawns and there's no game going then start the preparation process.
+	if (g_State.status == STATUS_NONE) {
+		g_State.Preparing();
+	}
 }
 
 public Action Timer_DelaySpawn(Handle timer, any userid) {
@@ -1276,14 +1301,14 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 		L4D_RespawnPlayer(client);
 	}
 
-	//Make sure all players who are ghosts are materialized.
-	if (L4D_IsPlayerGhost(client)) {
-		L4D_MaterializeFromGhost(client);
-	}
-
 	//Make sure all players are chargers.
 	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
 		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
+	}
+
+	//Make sure all players who are ghosts are materialized.
+	if (L4D_IsPlayerGhost(client)) {
+		L4D_MaterializeFromGhost(client);
 	}
 
 	TeleportToSurvivorPos(client);
@@ -1320,6 +1345,22 @@ void TeleportToSurvivorPos(int client) {
 	}
 
 	TeleportEntity(client, vecOrigin, NULL_VECTOR, NULL_VECTOR);
+}
+
+public void Event_OnPlayerTeam(Event event, const char[] name, bool dontBroadcast) {
+	if (!IsModeEnabled()) {
+		return;
+	}
+
+	int userid = event.GetInt("userid");
+	int client = GetClientOfUserId(userid);
+
+	if (client < 1) {
+		return;
+	}
+
+	g_Player[client].charging = false;
+	CreateTimer(0.2, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast) {
@@ -1547,18 +1588,19 @@ public Action Command_EndRace(int client, int args) {
 }
 
 public Action Timer_Tick(Handle timer) {
-	if (!IsModeEnabled()) {
+	//Gamemode is disabled either through the ConVar or the Status so do nothing.
+	if (!IsModeEnabled() || g_State.status == STATUS_NONE) {
 		return Plugin_Continue;
 	}
 
-	if (g_State.status == STATUS_NONE) {
+	//No players are available so set the Status of the mode to none and wait for players to join.
+	if (!IsPlayersAvailable()) {
+		g_State.None();
 		return Plugin_Continue;
 	}
 
+	//We're preparing for race so we know players are on the server currently wanting to race.
 	if (g_State.status == STATUS_PREPARING) {
-		if (!IsPlayersPlaying()) {
-			return Plugin_Continue;
-		}
 
 		char sTime[64];
 		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
@@ -1593,9 +1635,7 @@ public Action Timer_Tick(Handle timer) {
 			}
 		}
 
-		if (!g_State.paused) {
-			g_State.countdown--;
-		}
+		g_State.countdown--;
 
 		return Plugin_Continue;
 	}
@@ -2939,13 +2979,24 @@ public void OnEntityCreated(int entity, const char[] classname) {
 }
 
 public void OnItemSpawned(int entity) {
+	CreateTimer(0.5, Timer_DeleteItem, EntIndexToEntRef(entity));
+}
+
+public Action Timer_DeleteItem(Handle timer, any data) {
 	if (convar_Spawns_Items.BoolValue) {
+		int entity = -1;
+		if ((entity = EntRefToEntIndex(data)) == -1) {
+			return Plugin_Continue;
+		}
+
 		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 
 		if (owner < 1 || owner > MaxClients) {
 			RemoveEntity(entity);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 public void OnDoorSpawned(int entity) {
@@ -3504,9 +3555,9 @@ void DeleteObjects() {
 	}
 }
 
-bool IsPlayersPlaying() {
+stock bool IsPlayersPlaying() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected && g_Player[i].playing) {
 			return true;
 		}
 	}
@@ -3678,6 +3729,7 @@ void PopQueue() {
 			//All at once.
 			for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
 				g_Groups.GetGroupMembers(i, players);
+
 				for (int j = 0; j <= MaxClients; j++) {
 					if (players[j] == 0) {
 						continue;
@@ -3755,4 +3807,14 @@ int FindAvailablePlayer() {
 
 public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2) {
 	return 0;
+}
+
+bool IsPlayersAvailable() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && !IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+			return true;
+		}
+	}
+
+	return false;
 }
