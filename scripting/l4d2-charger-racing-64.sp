@@ -140,7 +140,7 @@ public void OnPluginStart() {
 	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_64_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_64_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Track_Culling = CreateConVar("sm_l4d2_charger_racing_64_track_culling", "5000.0", "After what distance from the player should the track no longer draw?", FCVAR_NOTIFY, true, 0.0);
-	//AutoExecConfig();
+	AutoExecConfig();
 
 	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
 	convar_Racing_Timer.AddChangeHook(OnRacingTimerChanged);
