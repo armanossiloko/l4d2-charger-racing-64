@@ -109,7 +109,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.0 [Beta Dev]",
+	version = "1.0.1 [Beta Dev]",
 	url = "https://drixevel.dev/"
 };
 
@@ -502,7 +502,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			g_CreatingTrack[client].GetNodeOrigin(i, origin);
 			g_CreatingTrack[client].GetNode((i+1), origin2, color);
 
-			if (GetVectorDistance(origin, pos) >= cull_distance || GetVectorDistance(origin2, pos) >= cull_distance) {
+			if (GetVectorDistance(pos, origin) > cull_distance || GetVectorDistance(pos, origin2) > cull_distance) {
 				continue;
 			}
 
@@ -533,7 +533,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 				origin2[2] += 25.0;
 			}
 
-			if (GetVectorDistance(origin, pos) >= cull_distance || GetVectorDistance(origin2, pos) >= cull_distance) {
+			if (GetVectorDistance(pos, origin) > cull_distance || GetVectorDistance(pos, origin2) > cull_distance) {
 				continue;
 			}
 
@@ -565,7 +565,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		for (int i = 0; i < length; i++) {
 			g_Tracks[track].GetNodeOrigin(i, origin);
 
-			if (GetVectorDistance(origin, pos) >= cull_distance) {
+			if (GetVectorDistance(pos, origin) > cull_distance) {
 				continue;
 			}
 
@@ -584,7 +584,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 			g_Tracks[track].GetNode((i+1), origin2, color);
 
-			if (GetVectorDistance(origin2, pos) >= cull_distance) {
+			if (GetVectorDistance(pos, origin2) > cull_distance) {
 				continue;
 			}
 
