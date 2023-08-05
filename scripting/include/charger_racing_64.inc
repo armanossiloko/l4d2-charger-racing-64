@@ -15,7 +15,7 @@ enum Status {
 //Modes consist of how the races are played out for players.
 enum Modes {
 	MODE_SINGLES,		//All players for themselves one by one and the player with the most points wins.
-	MODE_GROUP,			//Same as singles but all at once.
+	MODE_GROUPS,			//Same as singles but all at once.
 	MODE_TEAMS,			//Players are split into teams and race one by one and the team with the most points wins.
 	MODE_GROUPTEAMS		//NOT IMPLEMENTED
 }

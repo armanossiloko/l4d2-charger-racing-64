@@ -3,13 +3,13 @@
 	"voted for track"
 	{
 		"#format"	"{1:N},{2:s},{3:s}"
-		"en"	"{1} has voted {2} for the track: {3}"
+		"en"	"{olive}{1} {default}has voted {olive}{2} {default}for the track: {olive}{3}"
 	}
 
 	"voted for next track"
 	{
 		"#format"	"{1:N},{2:s}"
-		"en"	"{1} has voted {2} for the next track."
+		"en"	"{olive}{1} {default}has voted {olive}{2} for the next track."
 	}
 
 	"vote has ended"
@@ -20,19 +20,19 @@
 	"vote results track selected"
 	{
 		"#format"	"{1:s},{2:i},{3:i}"
-		"en"	"The track {1} has been selected. [{2} / {3} total]"
+		"en"	"The track {olive}{1} {default}has been selected. [{olive}{2} {default}/ {olive}{3} {default}total]"
 	}
 
 	"vote results track not selected"
 	{
 		"#format"	"{1:s},{2:i},{3:i}"
-		"en"	"The track {1} has NOT been selected. [{2} / {3} total]"
+		"en"	"The track {olive}{1} {default}has NOT been selected. [{olive}{2} {default}/ {olive}{3} {default}total]"
 	}
 
 	"race starting in print"
 	{
 		"#format"	"{1:i}"
-		"en"	"Starting in {1}..."
+		"en"	"Starting in {olive}{1}{default}..."
 	}
 
 	"race starting in center"
@@ -43,22 +43,22 @@
 
 	"race starting go print"
 	{
-		"en"	"GO!"
+		"en"	"{olive}GO!"
 	}
 
 	"race starting go center"
 	{
-		"en"	"GO!"
+		"en"	"{olive}GO!"
 	}
 
 	"race times up print"
 	{
-		"en"	"Time's up!"
+		"en"	"{olive}Time's up!"
 	}
 
 	"race times up center"
 	{
-		"en"	"Time's up!"
+		"en"	"{olive}Time's up!"
 	}
 
 	"editor enter a track name"
@@ -79,5 +79,247 @@
 	"survivor bot failed"
 	{
 		"en"	"Failed to spawn survivor."
+	}
+
+	"prepare post match map change"
+	{
+		"en"	"Starting up a map vote."
+	}
+
+	"prepare post match"
+	{
+		"#format"	"{1:i}"
+		"en"	"Starting the preparation process in {olive}{1} {default}seconds..."
+	}
+
+	"added to slot queue"
+	{
+		"#format"	"{1:i}"
+		"en"	"You have been added to queue in slot: {olive}{1}"
+	}
+
+	"added to group queue"
+	{
+		"#format"	"{1:i}"
+		"en"	"You have been added to group: {olive}{1}"
+	}
+
+	"you're up"
+	{
+		"en"	"You're UP! Complete the race and score as many points as possible."
+	}
+
+	"you're up for team"
+	{
+		"en"	"You're UP! Complete the race and score as many points as possible for your team."
+	}
+
+	"mode set successfully"
+	{
+		"en"	"Mode has been set."
+	}
+
+	"mode set failure"
+	{
+		"en"	"Failed to set mode."
+	}
+
+	"mode set to"
+	{
+		"#format"	"{1:s}"
+		"en"	"Mode has been set to: {olive}{1}"
+	}
+
+	"points lost for skipping nodes"
+	{
+		"#format"	"{1:i}"
+		"en"	"You have lost {olive}{1} {default}points for skipping node(s)."
+	}
+
+	"points gained for reaching node"
+	{
+		"#format"	"{1:i},{2:i}"
+		"en"	"You reached node {olive}{1} {default}and gained {olive}{2} {default}points."
+	}
+
+	"finished the race"
+	{
+		"#format"	"{1:N}"
+		"en"	"{olive}{1} {default}has finished the race!"
+	}
+
+	"time and score"
+	{
+		"#format"	"{1:s},{2:i}"
+		"en"	"Your time was {olive}{1} {default}and your score is: {olive}{2}"
+	}
+
+	"no winner for player"
+	{
+		"en"	"No winning player could be determined."
+	}
+
+	"winner for player"
+	{
+		"#format"	"{1:N},{2:i}"
+		"en"	"{olive}{1} {default}has won the race with {olive}{2} {default}points."
+	}
+
+	"no winner for team"
+	{
+		"en"	"No winning team could be determined."
+	}
+
+	"winner for team"
+	{
+		"#format"	"{1:i},{2:i}"
+		"en"	"Team {olive}{1} {default}has won the race with {olive}{2} {default}points."
+	}
+
+	"missing data while saving"
+	{
+		"en"	"You must specify a track name and have at least 2 nodes created to save."
+	}
+
+	"track deleted"
+	{
+		"en"	"Track has been deleted successfully."
+	}
+
+	"track deletion failed"
+	{
+		"en"	"Failed to delete track for unknown reason."
+	}
+
+	"track not deleted"
+	{
+		"en"	"Track has not been deleted."
+	}
+
+	"enter new track name"
+	{
+		"en"	"Enter a new name for this track:"
+	}
+
+	"track set successfully"
+	{
+		"en"	"New track has been set successfully."
+	}
+
+	"track set failed"
+	{
+		"en"	"New track has failed to be set for an unknown reason."
+	}
+
+	"track not changed"
+	{
+		"en"	"New track has not been set."
+	}
+
+	"track set to existing"
+	{
+		"#format"	"{1:s}"
+		"en"	"Track has been set to: {olive}{1}"
+	}
+
+	"track set to none"
+	{
+		"en"	"Track has been set to: {olive}None"
+	}
+
+	"hud status"
+	{
+		"en"	"Hud Status: "
+	}
+
+	"hud enabled"
+	{
+		"en"	"Enabled"
+	}
+	
+	"hud disabled"
+	{
+		"en"	"Disabled"
+	}
+
+	"force start race"
+	{
+		"#format"	"{1:N}"
+		"en"	"{olive}{1} {default}has started the race."
+	}
+
+	"force end race"
+	{
+		"#format"	"{1:N}"
+		"en"	"{olive}{1} {default}has ended the race."
+	}
+
+	"object type changed"
+	{
+		"#format"	"{1:s}"
+		"en"	"Type has been changed to: {olive}{1}"
+	}
+
+	"object saved"
+	{
+		"#format"	"{1:s}"
+		"en"	"{olive}{1} {default}has been saved."
+	}
+
+	"reply vote for track started"
+	{
+		"en"	"You have started a vote for a new track."
+	}
+
+	"reply vote for track already in progress"
+	{
+		"en"	"A vote is already in progress."
+	}
+
+	"reply track not found"
+	{
+		"en"	"Track not found, please try again."
+	}
+
+	"reply reloaded tracks"
+	{
+		"#format"	"{1:s}"
+		"en"	"Reloaded tracks from file: {olive}{1}"
+	}
+
+	"reply saved all tracks"
+	{
+		"#format"	"{1:s}"
+		"en"	"Saved all tracks to file: {olive}{1}"
+	}
+
+	"reply not aiming at valid entity"
+	{
+		"en"	"You are not aiming at a valid entity."
+	}
+
+	"reply not aiming at valid object"
+	{
+		"en"	"You are not aiming at a valid object to delete."
+	}
+
+	"reply object deleted"
+	{
+		"en"	"Object has been deleted successfully."
+	}
+
+	"pause status"
+	{
+		"en"	"Pause Status: "
+	}
+
+	"pause enabled"
+	{
+		"en"	"Enabled"
+	}
+	
+	"pause disabled"
+	{
+		"en"	"Disabled"
 	}
 }
