@@ -224,6 +224,11 @@ public Action Command_EndRace(int client, int args) {
 		return Plugin_Continue;
 	}
 
+	if (g_State.status != STATUS_RACING) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "no race active", client);
+		return Plugin_Handled;
+	}
+
 	g_State.Finish();
 	g_API.Call_OnEndRace();
 

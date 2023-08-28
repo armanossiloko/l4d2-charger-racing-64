@@ -13,8 +13,10 @@
 #include <charger_racing_64>
 
 //Defines
+#define PLUGIN_VERSION "1.0.2 [Beta Dev]"
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
+
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
 #define MAX_OBJECTS 128 //The total objects allowed per track and difficulty.
 #define MAX_COMMANDS 64 //The total commands in the plugin.
@@ -50,6 +52,8 @@ ConVar convar_Spawns_Items;
 ConVar convar_Spawns_Doors;
 ConVar convar_Spawns_Infected;
 ConVar convar_Track_Culling;
+ConVar convar_Preparation_Delay;
+ConVar convar_Death_On_Finish;
 
 //General
 char g_TracksPath[PLATFORM_MAX_PATH];
@@ -109,7 +113,7 @@ public Plugin myinfo = {
 	name = "[L4D2] Charger Racing 64",
 	author = "Drixevel",
 	description = "A gamemode that involves Chargers, racing and the number 64.",
-	version = "1.0.1 [Beta Dev]",
+	version = PLUGIN_VERSION,
 	url = "https://drixevel.dev/"
 };
 
@@ -126,7 +130,7 @@ public void OnPluginStart() {
 	LoadTranslations("l4d2-charger-racing-64.phrases");
 
 	//ConVars
-	CreateConVar("sm_l4d2_charger_racing_64_version", "1.0.0", "Version control for this plugin.", FCVAR_DONTRECORD);
+	CreateConVar("sm_l4d2_charger_racing_64_version", PLUGIN_VERSION, "Version control for this plugin.", FCVAR_DONTRECORD);
 	convar_Enabled = CreateConVar("sm_l4d2_charger_racing_64_enabled", "1", "Should this plugin be enabled or disabled?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Strafing = CreateConVar("sm_l4d2_charger_racing_64_strafing", "1", "Should the players be allowed to strafe while charging?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Strafing_Scale = CreateConVar("sm_l4d2_charger_racing_64_strafing_scale", "50.0", "How much strafing while charging based on a scale is allowed?", FCVAR_NOTIFY, true, 0.0);
@@ -144,6 +148,8 @@ public void OnPluginStart() {
 	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_64_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_64_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Track_Culling = CreateConVar("sm_l4d2_charger_racing_64_track_culling", "5000.0", "After what distance from the player should the track no longer draw?", FCVAR_NOTIFY, true, 0.0);
+	convar_Preparation_Delay = CreateConVar("sm_l4d2_charger_racing_64_preparation_delay", "10", "How many seconds to delay the preparation period?", FCVAR_NOTIFY, true, 0.0);
+	convar_Death_On_Finish = CreateConVar("sm_l4d2_charger_racing_64_death_on_finish", "1", "Should the Charger actively racing if/once they reach the finish line?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	AutoExecConfig();
 
 	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
@@ -807,13 +813,13 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 
 	g_Player[client].charging = false;
 
+	if (g_Player[client].finished) {
+		return;
+	}
+
 	if (g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
 		if (AllPlayersFinished()) {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
-			PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
-
-			g_State.Finish();
-			g_API.Call_OnEndRace();
+			EndRace();
 		} else {
 			g_State.PopQueue(true);
 		}
@@ -938,10 +944,9 @@ public Action Timer_Tick(Handle timer) {
 			case MODE_SINGLES, MODE_TEAMS: {
 				if (AllPlayersFinished()) {
 					CPrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
-					PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
+					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
-					g_State.Finish();
-					g_API.Call_OnEndRace();
+					EndRace();
 				} else {
 					g_State.PopQueue(true);
 				}
@@ -950,10 +955,9 @@ public Action Timer_Tick(Handle timer) {
 			case MODE_GROUPS, MODE_GROUPTEAMS: {
 				if (g_State.group > g_Groups.GetTotalGroups()) {
 					CPrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
-					PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
+					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
-					g_State.Finish();
-					g_API.Call_OnEndRace();
+					EndRace();
 				} else {
 					g_State.PopQueue(true);
 				}
@@ -998,11 +1002,7 @@ public void OnClientDisconnect(int client) {
 	//Player disconnected from the game while racing so check if we need to pop queue or end the race since they're the last one.
 	if (IsPlayerAlive(client) && !g_Player[client].spectating && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
 		if (AllPlayersFinished()) {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
-			PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
-
-			g_State.Finish();
-			g_API.Call_OnEndRace();
+			EndRace();
 		} else {
 			g_State.PopQueue(true);
 		}

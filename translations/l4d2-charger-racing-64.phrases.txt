@@ -48,7 +48,7 @@
 
 	"race starting go center"
 	{
-		"en"	"{olive}GO!"
+		"en"	"GO! Reach the finish line!"
 	}
 
 	"race times up print"
@@ -58,7 +58,23 @@
 
 	"race times up center"
 	{
-		"en"	"{olive}Time's up!"
+		"en"	"Time's up!"
+	}
+
+	"race finished print"
+	{
+		"en"	"The race has concluded!"
+	}
+
+	"race finished with time center"
+	{
+		"#format"	"{1:s}"
+		"en"	"The race has concluded! Your time: {1}"
+	}
+
+	"race finished center"
+	{
+		"en"	"The race has concluded!"
 	}
 
 	"editor enter a track name"
@@ -252,6 +268,11 @@
 	{
 		"#format"	"{1:N}"
 		"en"	"{olive}{1} {default}has ended the race."
+	}
+
+	"no race active"
+	{
+		"en"	"{default}No race is currently active."
 	}
 
 	"object type changed"

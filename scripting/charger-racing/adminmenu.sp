@@ -95,7 +95,7 @@ public void AdminMenu_SetMode(TopMenu topmenu, TopMenuAction action, TopMenuObje
 			strcopy(buffer, maxlength, "Set the Gamemode");
 		}
 		case TopMenuAction_SelectOption: {
-			FakeClientCommand(param, "sm_survivor");
+			FakeClientCommand(param, "sm_setmode");
 		}
 	}
 }

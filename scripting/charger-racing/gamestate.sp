@@ -63,15 +63,16 @@ enum struct GameState {
 
 		StopTimer(this.ticker);
 		this.paused = false;
+		float preparation = convar_Preparation_Delay.FloatValue;
 
 		if (convar_Rounds.IntValue > 0 && this.rounds >= convar_Rounds.IntValue) {
 			//InitiateMapChooserVote(MapChange_Instant);
 			//CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match map change");
-			CreateTimer(10.0, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match");
+			CreateTimer(preparation, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
+			CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match", RoundFloat(preparation));
 		} else {
-			CreateTimer(10.0, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match");
+			CreateTimer(preparation, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
+			CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match", RoundFloat(preparation));
 		}
 	}
 
@@ -331,4 +332,21 @@ bool SetStatus(Status status) {
 	}
 
 	return false;
+}
+
+void EndRace() {
+	CPrintToChatAll("%s%t", PLUGIN_TAG, "race finished print");
+
+	char sTime[64];
+	for (int i = 1; i <= MaxClients; i++) {
+		if (g_Player[i].playing) {
+			FormatSeconds(g_Player[i].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
+			PrintHintTextToAll("%s%T", PLUGIN_TAG_NOCOLOR, "race finished with time center", i, sTime);
+		} else {
+			PrintHintTextToAll("%s%T", PLUGIN_TAG_NOCOLOR, "race finished center", i);
+		}
+	}
+
+	g_State.Finish();
+	g_API.Call_OnEndRace();
 }

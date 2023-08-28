@@ -221,10 +221,13 @@ void IsNearFinish(int client) {
 	g_Player[client].finished = true;
 	CPrintToChatAll("%s%t", PLUGIN_TAG, "finished the race", client);
 
+	if (convar_Death_On_Finish.BoolValue) {
+		ForcePlayerSuicide(client);
+	}
+
 	char sTime[32];
 	FormatSeconds(g_Player[client].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
-
-	ForcePlayerSuicide(client);
+	
 	CPrintToChat(client, "%s%T", PLUGIN_TAG, "time and score", client, sTime, g_Player[client].points);
 
 	int points = g_Points.Get(g_State.mode, "finished");
