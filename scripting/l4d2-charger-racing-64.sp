@@ -13,7 +13,7 @@
 #include <charger_racing_64>
 
 //Defines
-#define PLUGIN_VERSION "1.0.2 [Beta Dev]"
+#define PLUGIN_VERSION "1.0.3 [Beta Dev]"
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -612,6 +612,11 @@ public void OnGameFrame() {
 
 	//No track set so we don't need to do anything.
 	if (track == NO_TRACK) {
+		return;
+	}
+
+	//Track is set but not valid to run, don't tick it.
+	if (!g_Tracks[track].Valid()) {
 		return;
 	}
 

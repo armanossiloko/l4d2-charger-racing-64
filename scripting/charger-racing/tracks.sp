@@ -11,6 +11,14 @@ enum struct Track {
 		this.colors = new ArrayList(4);
 	}
 
+	bool Valid() {
+		if (strlen(this.name) == 0 || this.nodes == null || this.colors == null) {
+			return false;
+		}
+
+		return true;
+	}
+
 	void Set(const char[] name, Difficulty difficulty) {
 		strcopy(this.name, sizeof(Track::name), name);
 		this.difficulty = difficulty;
