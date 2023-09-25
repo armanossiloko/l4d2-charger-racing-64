@@ -206,7 +206,7 @@ void OpenModesMenu(int client) {
 	menu.AddItem("Players", "Players");
 	menu.AddItem("Groups", "Groups");
 	menu.AddItem("Teams", "Teams");
-	menu.AddItem("GroupTeams", "Group Teams", ITEMDRAW_DISABLED);
+	menu.AddItem("GroupTeams", "Group Teams");
 
 	menu.Display(client, MENU_TIME_FOREVER);
 }

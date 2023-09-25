@@ -13,7 +13,7 @@
 #include <charger_racing_64>
 
 //Defines
-#define PLUGIN_VERSION "1.0.3 [Beta Dev]"
+#define PLUGIN_VERSION "1.0.4 [Beta Dev]"
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -54,6 +54,11 @@ ConVar convar_Spawns_Infected;
 ConVar convar_Track_Culling;
 ConVar convar_Preparation_Delay;
 ConVar convar_Death_On_Finish;
+ConVar convar_Point_Start_Radius;
+ConVar convar_Point_End_Radius;
+ConVar convar_Point_Start_Color;
+ConVar convar_Point_Current_Color;
+ConVar convar_Point_End_Color;
 
 //General
 char g_TracksPath[PLATFORM_MAX_PATH];
@@ -150,6 +155,11 @@ public void OnPluginStart() {
 	convar_Track_Culling = CreateConVar("sm_l4d2_charger_racing_64_track_culling", "5000.0", "After what distance from the player should the track no longer draw?", FCVAR_NOTIFY, true, 0.0);
 	convar_Preparation_Delay = CreateConVar("sm_l4d2_charger_racing_64_preparation_delay", "10", "How many seconds to delay the preparation period?", FCVAR_NOTIFY, true, 0.0);
 	convar_Death_On_Finish = CreateConVar("sm_l4d2_charger_racing_64_death_on_finish", "1", "Should the Charger actively racing if/once they reach the finish line?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Point_Start_Radius = CreateConVar("sm_l4d2_charger_racing_64_start_radius", "20.0", "What should the start radius be for path track nodes?", FCVAR_NOTIFY, true, 0.0);
+	convar_Point_End_Radius = CreateConVar("sm_l4d2_charger_racing_64_end_radius", "25.0", "What should the end radius be for path track nodes?", FCVAR_NOTIFY, true, 0.0);
+	convar_Point_Start_Color = CreateConVar("sm_l4d2_charger_racing_64_start_color", "255, 0, 0, 255", "What should the color of the starting node be?", FCVAR_NOTIFY);
+	convar_Point_Current_Color = CreateConVar("sm_l4d2_charger_racing_64_current_color", "255, 255, 255, 255", "What should the color of the current node be?", FCVAR_NOTIFY);
+	convar_Point_End_Color = CreateConVar("sm_l4d2_charger_racing_64_end_color", "0, 0, 255, 255", "What should the color of the end node be?", FCVAR_NOTIFY);
 	AutoExecConfig();
 
 	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
@@ -562,11 +572,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float origin[3]; int color[4];
 		float origin2[3];
 
-		float start_radius = 20.0;
-		float end_radius = 25.0;
-		int start_color[4] = { 255, 0, 0, 255 };
-		int current_color[4] = { 255, 255, 255, 255 };
-		int end_color[4] = { 0, 0, 255, 255 };
+		float start_radius = convar_Point_Start_Radius.FloatValue;
+		float end_radius = convar_Point_End_Radius.FloatValue;
+		int start_color[4]; start_color = GetConVarColor(convar_Point_Start_Color);
+		int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
+		int end_color[4]; end_color = GetConVarColor(convar_Point_End_Color);
 
 		for (int i = 0; i < length; i++) {
 			g_Tracks[track].GetNodeOrigin(i, origin);
@@ -695,9 +705,9 @@ bool AllPlayersFinished() {
 	return true;
 }
 
-public Action L4D_OnEnterGhostStatePre(int client) {
-	return g_Player[client].spectating ? Plugin_Handled : Plugin_Continue;
-}
+//public Action L4D_OnEnterGhostStatePre(int client) {
+//	return g_Player[client].spectating ? Plugin_Handled : Plugin_Continue;
+//}
 
 public void L4D_OnEnterGhostState(int client) {
 	L4D_MaterializeFromGhost(client);
@@ -707,6 +717,10 @@ public void L4D_OnEnterGhostState(int client) {
 	}
 
 	TeleportToSurvivorPos(client);
+
+	if (g_Player[client].spectating) {
+		ChangeClientTeam(client, 1);
+	}
 }
 
 public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast) {

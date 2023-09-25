@@ -291,3 +291,23 @@ void GetCharacterName(int index, char[] buffer, int size) {
 		}
 	}
 }
+
+stock int[] GetConVarColor(ConVar convar) {
+	int colors[4] = {255, 255, 255, 255};
+
+	char sBuffer[128];
+	convar.GetString(sBuffer, sizeof(sBuffer));
+
+	if (strlen(sBuffer) == 0) {
+		return colors;
+	}
+
+	char sPart[4][6];
+	int iReturned = ExplodeString(sBuffer, StrContains(sBuffer, ", ") != -1 ? ", " : " ", sPart, 4, 6);
+
+	for (int i = 0; i < iReturned; i++) {
+		colors[i] = StringToInt(sPart[i]);
+	}
+
+	return colors;
+}
