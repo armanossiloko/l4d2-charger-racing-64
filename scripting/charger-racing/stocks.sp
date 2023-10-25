@@ -311,3 +311,23 @@ stock int[] GetConVarColor(ConVar convar) {
 
 	return colors;
 }
+
+void GetStateDisplayName(Status state, char[] buffer, int size) {
+	switch (state) {
+		case STATUS_NONE: {
+			strcopy(buffer, size, "None");
+		}
+		case STATUS_PREPARING: {
+			strcopy(buffer, size, "Preparing");
+		}
+		case STATUS_READY: {
+			strcopy(buffer, size, "Ready");
+		}
+		case STATUS_RACING: {
+			strcopy(buffer, size, "Racing");
+		}
+		case STATUS_FINISHED: {
+			strcopy(buffer, size, "Finished");
+		}
+	}
+}

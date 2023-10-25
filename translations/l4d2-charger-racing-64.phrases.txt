@@ -343,4 +343,10 @@
 	{
 		"en"	"Disabled"
 	}
+
+	"state status"
+	{
+		"#format"	"{1:s}"
+		"en"	"Current state of the game: {olive}{1}"
+	}
 }

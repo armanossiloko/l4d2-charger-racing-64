@@ -140,12 +140,12 @@ enum struct GameState {
 
 	void PopQueue(bool ready) {		
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || IsFakeClient(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+			if (!IsClientInGame(i) || IsFakeClient(i)) {
 				continue;
 			}
 
 			g_Player[i].spectating = true;
-			L4D_RespawnPlayer(i);
+			ChangeClientTeam(i, view_as<int>(L4D_TEAM_SPECTATOR));
 		}
 
 		int[] players = new int[MaxClients];
@@ -197,6 +197,10 @@ enum struct GameState {
 
 			if (teleport) {
 				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
+
+				#if defined DEBUG
+				PrintToServer("%N teleported to the starting node.", i);
+				#endif
 			} else {
 				TeleportToSurvivorPos(i);
 			}
@@ -206,6 +210,7 @@ enum struct GameState {
 		}
 
 		if (ready) {
+			PrintToServer("ready");
 			this.Ready(false);
 		}
 	}

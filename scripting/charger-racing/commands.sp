@@ -407,3 +407,10 @@ public Action Command_Pause(int client, int args) {
 
 	return Plugin_Handled;
 }
+
+public Action Command_State(int client, int args) {
+	char name[64];
+	GetStateDisplayName(g_State.status, name, sizeof(name));
+	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "state status", client, name);
+	return Plugin_Handled;
+}

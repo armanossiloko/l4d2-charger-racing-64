@@ -205,6 +205,7 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_spawnbot", Command_SpawnBot, ADMFLAG_ROOT, "Spawns a specific bot at the location you're looking at.");
 	RegAdminCmd2("sm_delete", Command_Delete, ADMFLAG_ROOT, "Delete an object from the track.");
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
+	RegAdminCmd2("sm_state", Command_State, ADMFLAG_ROOT, "Prints out the current state of the game.");
 
 	//General
 	g_State.Init();
@@ -747,11 +748,6 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 
 	g_Player[client].charging = false;
 	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
-
-	//If someone spawns and there's no game going then start the preparation process.
-	if (g_State.status == STATUS_NONE) {
-		g_State.Preparing();
-	}
 }
 
 public Action Timer_DelaySpawn(Handle timer, any userid) {
@@ -760,24 +756,34 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	}
 
 	int client;
-	if ((client = GetClientOfUserId(userid)) < 1 || !IsClientInGame(client) || !IsPlayerAlive(client)) {
+	if ((client = GetClientOfUserId(userid)) < 1 || !IsClientInGame(client)) {
 		return Plugin_Stop;
 	}
 
-	//Make sure all players are on the infected team.
+	//Move the player to the infected team if they're not on there already while spawning into the map.
 	if (L4D_GetClientTeam(client) != L4DTeam_Infected) {
 		ChangeClientTeam(client, view_as<int>(L4DTeam_Infected));
 	}
 
+	//Respawn the player if they currently aren't alive but on a team.
+	if (!IsPlayerAlive(client)) {
+		L4D_RespawnPlayer(client);
+	}
+
+	//Make sure the player is a charger and no other type of zombie.
 	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
 		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 	}
 
+	//Hack to kick bots.
 	if (!IsFakeClient(client)) {
 		FindConVar("director_no_survivor_bots").BoolValue = false;
 	}
 
-	TeleportToSurvivorPos(client);
+	//Teleport the player to a survivor position at the start of the map.
+	if (g_State.status != STATUS_RACING) {
+		TeleportToSurvivorPos(client);
+	}
 
 	#if defined DEBUG
 	PrintToServer("%N has had a delay spawn occur.", client);
@@ -901,6 +907,9 @@ public Action Timer_Tick(Handle timer) {
 
 	//No players are available so set the Status of the mode to none and wait for players to join.
 	if (!IsPlayersAvailable()) {
+		#if defined DEBUG
+		PrintToServer("No players are available, stopping the ticker and setting the state to none.");
+		#endif
 		g_State.None();
 		return Plugin_Continue;
 	}
