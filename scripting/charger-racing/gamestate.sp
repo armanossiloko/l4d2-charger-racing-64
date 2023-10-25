@@ -9,6 +9,18 @@ enum struct GameState {
 	int rounds;		//How many rounds have been played.
 	int group;		//The current group that is racing.
 
+	void Init() {
+		this.track = NO_TRACK;
+		this.status = STATUS_NONE;
+		this.mode = MODE_SINGLES;
+		this.countdown = 0;
+		this.timer = 0.0;
+		this.ticker = null;
+		this.paused = false;
+		this.rounds = 0;
+		this.group = 0;
+	}
+
 	void Preparing() {
 		this.status = STATUS_PREPARING;
 		g_API.Call_OnStatusChange(this.status);

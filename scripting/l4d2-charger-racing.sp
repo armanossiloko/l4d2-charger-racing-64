@@ -205,8 +205,7 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
 
 	//General
-	g_State.track = NO_TRACK;
-	g_State.Preparing();
+	g_State.Init();
 	g_Points.Init();
 	g_Groups.Init();
 
