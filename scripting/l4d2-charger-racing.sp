@@ -705,10 +705,6 @@ bool AllPlayersFinished() {
 	return true;
 }
 
-//public Action L4D_OnEnterGhostStatePre(int client) {
-//	return g_Player[client].spectating ? Plugin_Handled : Plugin_Continue;
-//}
-
 public void L4D_OnEnterGhostState(int client) {
 	L4D_MaterializeFromGhost(client);
 
