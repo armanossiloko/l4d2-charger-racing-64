@@ -17,6 +17,8 @@
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
 
+#define DEBUG
+
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
 #define MAX_OBJECTS 128 //The total objects allowed per track and difficulty.
 #define MAX_COMMANDS 64 //The total commands in the plugin.
@@ -172,12 +174,12 @@ public void OnPluginStart() {
 	//Events
 	HookEvent("round_start", Event_OnRoundStart);
 	HookEvent("player_spawn", Event_OnPlayerSpawn);
-	HookEvent("player_team", Event_OnPlayerTeam);
 	HookEvent("player_death", Event_OnPlayerDeath);
 	HookEvent("charger_charge_start", Event_OnChargeStart);
 	HookEvent("charger_charge_end", Event_OnChargeEnd);
 	HookEvent("charger_pummel_start", Event_OnPummelStart);
 	HookEvent("player_bot_replace", Event_OnBotReplacePlayer);
+	HookEvent("gameinstructor_nodraw", Event_NoDraw, EventHookMode_PostNoCopy);
 
 	//Player Commands
 	RegConsoleCmd2("sm_hud", Command_Hud, "Toggles the gamemodes HUD on or off.");
@@ -241,6 +243,15 @@ public void OnPluginStart() {
 	//Second ticker and chat print
 	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
 	CPrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
+
+	RegAdminCmd("sm_changeteam", Command_ChangeTeam, ADMFLAG_GENERIC);
+}
+
+public Action Command_ChangeTeam(int client, int args) {
+	char team[16];
+	GetCmdArgString(team, sizeof(team));
+	ChangeClientTeam(client, StringToInt(team));
+	return Plugin_Handled;
 }
 
 public void OnPluginEnd() {
@@ -356,10 +367,6 @@ public void OnConfigsExecuted() {
 
 			if (IsClientInGame(i)) {
 				OnClientPutInServer(i);
-
-				if (IsPlayerAlive(i)) {
-					CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(i), TIMER_FLAG_NO_MAPCHANGE);
-				}
 			}
 		}
 
@@ -716,9 +723,17 @@ public void L4D_OnEnterGhostState(int client) {
 	if (g_Player[client].spectating) {
 		ChangeClientTeam(client, 1);
 	}
+
+	#if defined DEBUG
+	PrintToServer("%N has had a ghost state occur.", client);
+	#endif
 }
 
 public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
+	#if defined DEBUG
+	PrintToServer("A player has spawned.");
+	#endif
+
 	if (!IsModeEnabled()) {
 		return;
 	}
@@ -731,7 +746,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	}
 
 	g_Player[client].charging = false;
-	CreateTimer(0.2, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
 
 	//If someone spawns and there's no game going then start the preparation process.
 	if (g_State.status == STATUS_NONE) {
@@ -745,18 +760,13 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	}
 
 	int client;
-	if ((client = GetClientOfUserId(userid)) < 1) {
+	if ((client = GetClientOfUserId(userid)) < 1 || !IsClientInGame(client) || !IsPlayerAlive(client)) {
 		return Plugin_Stop;
 	}
 
 	//Make sure all players are on the infected team.
 	if (L4D_GetClientTeam(client) != L4DTeam_Infected) {
 		ChangeClientTeam(client, view_as<int>(L4DTeam_Infected));
-	}
-
-	//Make sure all players are alive.
-	if (!IsPlayerAlive(client)) {
-		L4D_RespawnPlayer(client);
 	}
 
 	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
@@ -766,6 +776,12 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	if (!IsFakeClient(client)) {
 		FindConVar("director_no_survivor_bots").BoolValue = false;
 	}
+
+	TeleportToSurvivorPos(client);
+
+	#if defined DEBUG
+	PrintToServer("%N has had a delay spawn occur.", client);
+	#endif
 
 	return Plugin_Stop;
 }
@@ -790,27 +806,13 @@ void TeleportToSurvivorPos(int client) {
 	}
 
 	float vecOrigin[3];
-	if (!GetAbsOrigin(random, vecOrigin)) {
-		GetEntPropVector(random, Prop_Send, "m_vecOrigin", vecOrigin);
-	}
+	GetAbsOrigin(random, vecOrigin);
 
 	TeleportEntity(client, vecOrigin, NULL_VECTOR, NULL_VECTOR);
-}
 
-public void Event_OnPlayerTeam(Event event, const char[] name, bool dontBroadcast) {
-	if (!IsModeEnabled()) {
-		return;
-	}
-
-	int userid = event.GetInt("userid");
-	int client = GetClientOfUserId(userid);
-
-	if (client < 1) {
-		return;
-	}
-
-	g_Player[client].charging = false;
-	CreateTimer(0.2, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+	#if defined DEBUG
+	PrintToServer("Teleporting %N to 'info_survivor_position' at [%.2f/%.2f/%.2f]: %i", client, vecOrigin[0], vecOrigin[1], vecOrigin[2], random);
+	#endif
 }
 
 public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast) {
@@ -1365,4 +1367,63 @@ bool IsPlayersAvailable() {
 	}
 
 	return false;
+}
+
+bool g_bOutput1;
+bool g_bOutput2;
+
+public void Event_NoDraw(Event event, const char[] name, bool dontBroadcast) {
+	if (L4D_IsFirstMapInScenario()) {
+		g_bOutput1 = false;
+		g_bOutput2 = false;
+
+		CreateTimer(1.0, TimerStart);
+		CreateTimer(5.0, TimerStart);
+		CreateTimer(6.0, TimerStart);
+		CreateTimer(6.5, TimerStart);
+		CreateTimer(7.0, TimerStart);
+		CreateTimer(8.0, TimerStart);
+	}
+}
+
+public Action TimerStart(Handle timer)
+{
+	int entity = FindEntityByClassname(-1, "info_director");
+
+	if (IsValidEntity(entity))
+	{
+		char director[32];
+		GetEntPropString(entity, Prop_Data, "m_iName", director, sizeof(director));
+
+		char buffer[128];
+		for( int i = 0; i < 2; i++ )
+		{
+			entity = -1;
+			while( (entity = FindEntityByClassname(entity, i == 0 ? "point_viewcontrol_survivor" : "point_viewcontrol_multiplayer")) != INVALID_ENT_REFERENCE )
+			{
+				if ((i == 0 && !g_bOutput1) || (i == 1 && !g_bOutput2))
+				{
+					FormatEx(buffer, sizeof(buffer), "OnUser1 %s:ReleaseSurvivorPositions::0:-1", director);
+					SetVariantString(buffer);
+					AcceptEntityInput(entity, "AddOutput");
+
+					FormatEx(buffer, sizeof(buffer), "OnUser1 %s:FinishIntro::0:-1", director);
+					SetVariantString(buffer);
+					AcceptEntityInput(entity, "AddOutput");
+
+					AcceptEntityInput(entity, "FireUser1");
+
+					if( i == 0 )			g_bOutput1 = true;
+					else if( i == 1 )		g_bOutput2 = true;
+				} else {
+					AcceptEntityInput(entity, "FireUser1");
+				}
+
+				SetVariantString("!self");
+				AcceptEntityInput(entity, "StartMovement");
+			}
+		}
+	}
+
+	return Plugin_Continue;
 }
