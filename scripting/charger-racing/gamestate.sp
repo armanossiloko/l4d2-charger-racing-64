@@ -197,10 +197,12 @@ enum struct GameState {
 			}
 		}
 
-		float origin[3]; bool teleport;
+		float origin[3]; float origin2[3]; bool teleport;
 		if (this.track != NO_TRACK) {
 			g_Tracks[this.track].GetNodeOrigin(0, origin); //0 = Start
 			teleport = true;
+
+			g_Tracks[this.track].GetNodeOrigin(1, origin2); //1 = First node
 		}
 
 		//Teleport the players to the starting line and freeze them in place.
@@ -213,8 +215,9 @@ enum struct GameState {
 				#if defined DEBUG
 				PrintToServer("%N teleported to the starting node.", i);
 				#endif
-
+					
 				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
+				LookAtPoint(i, origin2);
 			} else {
 				#if defined DEBUG
 				PrintToServer("%N teleported to a survivor position.", i);

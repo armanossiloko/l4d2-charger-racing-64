@@ -342,3 +342,20 @@ void GetStateDisplayName(Status state, char[] buffer, int size) {
 		}
 	}
 }
+
+void LookAtPoint(int client, float point[3]){
+	float angles[3]; float clientEyes[3]; float resultant[3];
+	GetClientEyePosition(client, clientEyes);
+	MakeVectorFromPoints(point, clientEyes, resultant);
+	GetVectorAngles(resultant, angles);
+	if (angles[0] >= 270){
+		angles[0] -= 270;
+		angles[0] = (90-angles[0]);
+	} else {
+		if (angles[0] <= 90){
+			angles[0] *= -1;
+		}
+	}
+	angles[1] -= 180;
+	TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+}
