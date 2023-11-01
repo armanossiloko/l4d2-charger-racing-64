@@ -10,10 +10,10 @@
 #include <left4dhooks>
 #include <colors>
 
-#include <charger_racing_64>
+#include <charger_racing>
 
 //Defines
-#define PLUGIN_VERSION "1.0.4 [Beta Dev]"
+#define PLUGIN_VERSION "1.0.0"
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
 

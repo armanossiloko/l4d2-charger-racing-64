@@ -1,7 +1,7 @@
-#if defined _charger_racing_64_included
+#if defined _charger_racing_included
   #endinput
 #endif
-#define _charger_racing_64_included
+#define _charger_racing_included
 
 //Each status is used to manage the game state.
 enum Status {
