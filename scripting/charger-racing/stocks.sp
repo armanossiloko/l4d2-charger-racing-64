@@ -1,3 +1,14 @@
+void ModeLog(const char[] format, any ...) {
+	char buffer[1024];
+	VFormat(buffer, sizeof(buffer), format, 2);
+
+	char path[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, path, sizeof(path), "logs/charger-racing.log");
+
+	LogToFileEx(path, "[Charger-Racing] %s", buffer);
+	PrintToServer("[Charger-Racing] %s", buffer);
+}
+
 void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] format, bool precision = false) {
 	int t = RoundToFloor(seconds);
 

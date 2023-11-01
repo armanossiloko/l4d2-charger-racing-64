@@ -122,8 +122,7 @@ void ParseTracks(const char[] file) {
 	}
 
 	delete kv;
-	LogMessage("Parsed %d tracks from file: %s", g_TotalTracks, file);
-	PrintToServer("Parsed %d tracks from file: %s", g_TotalTracks, file);
+	ModeLog("Parsed %d tracks from file: %s", g_TotalTracks, file);
 }
 
 void SaveTracks(const char[] file) {
@@ -161,8 +160,7 @@ void SaveTracks(const char[] file) {
 	kv.ExportToFile(file);
 
 	delete kv;
-	LogMessage("Saving %d tracks to file: %s", g_TotalTracks, file);
-	PrintToServer("Saving %d tracks to file: %s", g_TotalTracks, file);
+	ModeLog("Saving %d tracks to file: %s", g_TotalTracks, file);
 }
 
 void OnNodeTick(int index, float origin[3]) {

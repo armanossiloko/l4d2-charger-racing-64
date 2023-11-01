@@ -189,8 +189,7 @@ void ParseModels(const char[] file) {
 	}
 
 	delete kv;
-	LogMessage("Parsed %i models from file: %s", g_TotalModels, file);
-	PrintToServer("Parsed %i models from file: %s", g_TotalModels, file);
+	ModeLog("Parsed %i models from file: %s", g_TotalModels, file);
 }
 
 int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character = 0) {
@@ -567,8 +566,7 @@ void ParseObjects(const char[] file, int track) {
 	}
 
 	delete kv;
-	LogMessage("Parsed %d objects from file: %s", g_TotalObjects, file);
-	PrintToServer("Parsed %d objects from file: %s", g_TotalObjects, file);
+	ModeLog("Parsed %d objects from file: %s", g_TotalObjects, file);
 
 	SpawnObjects();
 }

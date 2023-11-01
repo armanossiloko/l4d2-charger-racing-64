@@ -58,6 +58,5 @@ void ParsePoints(const char[] file) {
 	}
 
 	delete kv;
-	LogMessage("Parsed %i point values from file: %s", total, file);
-	PrintToServer("Parsed %i point values from file: %s", total, file);
+	ModeLog("Parsed %i point values from file: %s", total, file);
 }
