@@ -35,6 +35,7 @@ enum struct GameState {
 
 		SpawnObjects();
 		KickBots();
+		CreateTrackEnts();
 	}
 
 	void Ready(bool popqueue) {
@@ -50,6 +51,7 @@ enum struct GameState {
 
 		SpawnObjects();
 		KickBots();
+		CreateTrackEnts();
 
 		//Run code a frame after ready starts, mostly used to stop compile errors.
 		RequestFrame(Frame_DelayReady);

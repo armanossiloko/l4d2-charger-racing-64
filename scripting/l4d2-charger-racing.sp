@@ -24,9 +24,10 @@
 #define MAX_COMMANDS 64 //The total commands in the plugin.
 #define NO_TRACK -1 	//This is the corresponding index for data to know that this track either doesn't exist, is invalid, or is not set.
 #define NO_NODE -1 		//This is the corresponding index for data to know that this node either doesn't exist, is invalid, or is not set.
-#define DEFAULT_OBJECT "models/props_fortifications/orange_cone001_clientside.mdl"
-#define MAX_MODELS 256
+#define DEFAULT_OBJECT "models/props_fortifications/orange_cone001_clientside.mdl"	//Default model to use for a model object when first created.
+#define MAX_MODELS 256	//Maximum amount of models allowed to be precached.
 
+//Precache the survivor models for use when spawning bot objects for charging.
 #define MODEL_FRANCIS "models/survivors/survivor_biker.mdl"
 #define MODEL_LOUIS "models/survivors/survivor_manager.mdl"
 #define MODEL_ZOEY "models/survivors/survivor_teenangst.mdl"
@@ -44,6 +45,7 @@ ConVar convar_Jumping;
 ConVar convar_Jumping_Scale;
 ConVar convar_Pathing;
 ConVar convar_Pathing_Width;
+ConVar convar_Pathing_Rendering;
 ConVar convar_Preparation_Timer;
 ConVar convar_Racing_Countdown;
 ConVar convar_Racing_Timer;
@@ -105,6 +107,8 @@ Handle g_hSDK_OnPummelEnded;
 
 Cookie g_Cookie_Hud;
 
+ArrayList g_BeamEnts;
+
 //Sub-Plugins
 #include "charger-racing/adminmenu.sp"
 #include "charger-racing/api.sp"
@@ -147,6 +151,7 @@ public void OnPluginStart() {
 	convar_Jumping_Scale = CreateConVar("sm_l4d2_charger_racing_64_jumping_scale", "400.0", "How much jump height while charging based on a scale is allowed?", FCVAR_NOTIFY, true, 0.0);
 	convar_Pathing = CreateConVar("sm_l4d2_charger_racing_64_pathing", "1", "Should the paths be drawn to players?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Pathing_Width = CreateConVar("sm_l4d2_charger_racing_64_pathing_width", "1.0", "How wide should the paths be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Pathing_Rendering = CreateConVar("sm_l4d2_charger_racing_64_pathing_rendering", "1", "What type of rendering should the pathing use?\n(0 = tempents, 1 = ents)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Preparation_Timer = CreateConVar("sm_l4d2_charger_racing_64_preparation_timer", "60", "How long should the preparation phase be?", FCVAR_NOTIFY, true, 0.0);
 	convar_Racing_Countdown = CreateConVar("sm_l4d2_charger_racing_64_countdown", "5", "How long should the countdown to start the race be?", FCVAR_NOTIFY, true, 0.0);
 	convar_Racing_Timer = CreateConVar("sm_l4d2_charger_racing_64_timer", "360", "How long should races be in terms of time max?", FCVAR_NOTIFY, true, 0.0);
@@ -166,13 +171,14 @@ public void OnPluginStart() {
 	convar_Point_End_Color = CreateConVar("sm_l4d2_charger_racing_64_end_color", "0, 0, 255, 255", "What should the color of the end node be?", FCVAR_NOTIFY);
 	AutoExecConfig();
 
-	convar_Racing_Timer.AddChangeHook(OnPrepareTimerChanged);
+	convar_Pathing.AddChangeHook(OnPathingChanged);
+	convar_Pathing_Rendering.AddChangeHook(OnPathingRenderingChanged);
+	convar_Preparation_Timer.AddChangeHook(OnPrepareTimerChanged);
 	convar_Racing_Timer.AddChangeHook(OnRacingTimerChanged);
 	convar_Charging_Particle.AddChangeHook(OnParticleChanged);
 	convar_Spawns_Items.AddChangeHook(OnItemSpawnsChanged);
 	convar_Spawns_Doors.AddChangeHook(OnDoorsSpawnsChanged);
 	convar_Spawns_Infected.AddChangeHook(OnInfectedSpawnsChanged);
-	convar_Preparation_Timer.AddChangeHook(OnPreparationTimeChanged);
 
 	//Events
 	HookEvent("round_start", Event_OnRoundStart);
@@ -215,6 +221,7 @@ public void OnPluginStart() {
 	g_State.Init();
 	g_Points.Init();
 	g_Groups.Init();
+	g_BeamEnts = new ArrayList();
 
 	//Admin Menu
 	TopMenu topmenu;
@@ -251,6 +258,11 @@ public void OnPluginStart() {
 	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
 
 	CPrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
+
+	// int entity = -1;
+	// while ((entity = FindEntityByClassname(entity, "env_beam")) != -1) {
+	// 	AcceptEntityInput(entity, "Kill");
+	// }
 }
 
 public void OnPluginEnd() {
@@ -262,6 +274,40 @@ public void OnPluginEnd() {
 		if (IsClientInGame(i) && IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
 		}
+	}
+
+	ClearTrackEnts();
+}
+
+public void OnPathingChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	if (StrEqual(oldValue, newValue)) {
+		return;
+	}
+
+	bool enabled = StringToBool(newValue);
+
+	if (enabled) {
+		if (convar_Pathing_Rendering.IntValue == 1) {
+			CreateTrackEnts();
+		}
+	} else {
+		if (convar_Pathing_Rendering.IntValue == 1) {
+			ClearTrackEnts();
+		}
+	}
+}
+
+public void OnPathingRenderingChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	if (StrEqual(oldValue, newValue)) {
+		return;
+	}
+
+	bool render = StringToBool(newValue);
+
+	if (render) {
+		CreateTrackEnts();
+	} else {
+		ClearTrackEnts();
 	}
 }
 
@@ -439,6 +485,7 @@ public void OnMapStart() {
 public void OnMapEnd() {
 	g_State.Init();
 	ClearTracks();
+	ClearTrackEnts();
 }
 
 public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcast) {
@@ -524,7 +571,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 	float cull_distance = convar_Track_Culling.FloatValue;
 
-	// Shows the track you're creating but not an actual live track.
+	//Display the track as tempents to the player who's creating it.
 	if (g_CreatingTrack[client].nodes != null) {
 		
 		int length = g_CreatingTrack[client].GetTotalNodes();
@@ -550,6 +597,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 
+	//Display the track as tempents to the player who's editing it.
 	if (g_EditingTrack[client] != NO_TRACK) {
 		int track = g_EditingTrack[client];
 
@@ -581,58 +629,25 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 
-	//Shows the active track path to all players.
+	//Display a ring around the currently active node the player is on.
 	int track = g_State.track;
 
 	if (track == NO_TRACK) {
 		return Plugin_Continue;
 	}
 
-	if (convar_Pathing.BoolValue) {		
-		int length = g_Tracks[track].GetTotalNodes();
-		float origin[3]; int color[4];
-		float origin2[3];
+	float origin[3];
 
-		float start_radius = convar_Point_Start_Radius.FloatValue;
-		float end_radius = convar_Point_End_Radius.FloatValue;
-		int start_color[4]; start_color = GetConVarColor(convar_Point_Start_Color);
-		int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
-		int end_color[4]; end_color = GetConVarColor(convar_Point_End_Color);
+	float start_radius = convar_Point_Start_Radius.FloatValue;
+	float end_radius = convar_Point_End_Radius.FloatValue;
+	int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
+	
+	int i = g_Player[client].currentnode;
+	g_Tracks[track].GetNodeOrigin(i, origin);
 
-		for (int i = 0; i < length; i++) {
-			g_Tracks[track].GetNodeOrigin(i, origin);
-
-			if (GetVectorDistance(pos, origin) > cull_distance) {
-				continue;
-			}
-
-			//Show the ring for the start and end of the track.
-			if (i == 0) {
-				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, start_color, Speed, 0);
-				TE_SendToClient(client);
-			} else if (i == (length - 1)) {
-				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, end_color, Speed, 0);
-				TE_SendToClient(client);
-			}
-
-			if ((i + 1) >= length) {
-				continue;
-			}
-
-			g_Tracks[track].GetNode((i+1), origin2, color);
-
-			if (GetVectorDistance(pos, origin2) > cull_distance) {
-				continue;
-			}
-
-			TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
-			TE_SendToClient(client);
-
-			if (g_Player[client].currentnode == (i - 1) && (g_State.status == STATUS_READY || g_State.status == STATUS_RACING)) {
-				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
-				TE_SendToClient(client);
-			}
-		}
+	if (GetVectorDistance(pos, origin) <= cull_distance && (g_State.status == STATUS_READY || g_State.status == STATUS_RACING)) {
+		TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+		TE_SendToClient(client);
 	}
 	
 	return Plugin_Continue;
@@ -662,6 +677,51 @@ public void OnGameFrame() {
 	for (int i = 0; i < length; i++) {
 		g_Tracks[track].GetNodeOrigin(i, origin);
 		OnNodeTick(i, origin);
+	}
+
+	if (convar_Pathing.BoolValue) {
+		int StartFrame = 0;
+		int FrameRate = 0;
+		float Life = 0.1;
+		float Width = convar_Pathing_Width.FloatValue;
+		//float EndWidth = convar_Pathing_Width.FloatValue;
+		//int FadeLength = 0;
+		float Amplitude = 0.0;
+		int Speed = 0;
+		
+		int color[4];
+		float origin2[3];
+
+		float start_radius = convar_Point_Start_Radius.FloatValue;
+		float end_radius = convar_Point_End_Radius.FloatValue;
+		int start_color[4]; start_color = GetConVarColor(convar_Point_Start_Color);
+		int end_color[4]; end_color = GetConVarColor(convar_Point_End_Color);
+
+		bool render = convar_Pathing_Rendering.IntValue == 0;
+
+		for (int i = 0; i < length; i++) {
+			g_Tracks[track].GetNodeOrigin(i, origin);
+
+			//Show the ring for the start and end of the track.
+			if (i == 0) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, start_color, Speed, 0);
+				TE_SendToAllInRange(origin, RangeType_Visibility);
+			} else if (i == (length - 1)) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, end_color, Speed, 0);
+				TE_SendToAllInRange(origin, RangeType_Visibility);
+			}
+
+			if ((i + 1) >= length) {
+				continue;
+			}
+
+			g_Tracks[track].GetNode((i+1), origin2, color);
+
+			if (render) {
+				//TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
+				//TE_SendToAllInRange(origin, RangeType_Visibility);
+			}
+		}
 	}
 }
 
@@ -1064,7 +1124,7 @@ public void OnClientDisconnect(int client) {
 	}
 
 	//Player disconnected from the game while racing so check if we need to pop queue or end the race since they're the last one.
-	if (IsPlayerAlive(client) && !g_Player[client].spectating && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
+	if (IsClientInGame(client) && IsPlayerAlive(client) && !g_Player[client].spectating && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
 		if (AllPlayersFinished()) {
 			EndRace();
 		} else {
