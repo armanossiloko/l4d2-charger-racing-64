@@ -157,6 +157,8 @@ enum struct GameState {
 		}
 
 		int[] players = new int[MaxClients];
+		int client;
+
 		switch (this.mode) {
 			case MODE_SINGLES, MODE_TEAMS: {
 				//One at a time.
@@ -164,13 +166,15 @@ enum struct GameState {
 				this.group++;
 
 				for (int j = 0; j < MaxClients; j++) {
-					if (players[j] == 0) {
+					if ((client = players[j]) == 0) {
 						continue;
 					}
 
-					g_Player[players[j]].spectating = false;
-					CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(players[j]), TIMER_FLAG_NO_MAPCHANGE);
-					CPrintToChat(players[j], "%s%T", PLUGIN_TAG, "you're up", players[j]);
+					g_Player[client].spectating = false;
+					CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up", client);
+
+					ChangeClientTeam(client, view_as<int>(L4D_TEAM_INFECTED));
+					L4D_RespawnPlayer(client);
 				}
 			}
 			case MODE_GROUPS, MODE_GROUPTEAMS: {
@@ -179,13 +183,15 @@ enum struct GameState {
 					g_Groups.GetGroupMembers(i, players);
 
 					for (int j = 0; j < MaxClients; j++) {
-						if (players[j] == 0) {
+						if ((client = players[j]) == 0) {
 							continue;
 						}
 
-						g_Player[players[j]].spectating = false;
-						CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(players[j]), TIMER_FLAG_NO_MAPCHANGE);
-						CPrintToChat(players[j], "%s%T", PLUGIN_TAG, "you're up for team", players[j]);
+						g_Player[client].spectating = false;
+						CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up for team", client);
+
+						ChangeClientTeam(client, view_as<int>(L4D_TEAM_INFECTED));
+						L4D_RespawnPlayer(client);
 					}
 				}
 			}
@@ -199,17 +205,21 @@ enum struct GameState {
 
 		//Teleport the players to the starting line and freeze them in place.
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected || g_Player[i].spectating) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i) || g_Player[i].spectating) {
 				continue;
 			}
 
 			if (teleport) {
-				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
-
 				#if defined DEBUG
 				PrintToServer("%N teleported to the starting node.", i);
 				#endif
+
+				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 			} else {
+				#if defined DEBUG
+				PrintToServer("%N teleported to a survivor position.", i);
+				#endif
+
 				TeleportToSurvivorPos(i);
 			}
 
@@ -221,7 +231,7 @@ enum struct GameState {
 			#if defined DEBUG
 			PrintToServer("ready");
 			#endif
-			
+
 			this.Ready(false);
 		}
 	}

@@ -786,7 +786,7 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	}
 
 	//Teleport the player to a survivor position at the start of the map.
-	if (g_State.status != STATUS_RACING) {
+	if (g_State.status == STATUS_NONE || g_State.status == STATUS_PREPARING) {
 		TeleportToSurvivorPos(client);
 	}
 
@@ -915,7 +915,7 @@ public Action Timer_Tick(Handle timer) {
 		#if defined DEBUG
 		PrintToServer("No players are available, stopping the ticker and setting the state to none.");
 		#endif
-		
+
 		g_State.None(1);
 		return Plugin_Continue;
 	}
@@ -1287,7 +1287,7 @@ public void OnInfectedSpawned(int entity) {
 
 stock bool IsPlayersPlaying() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected && g_Player[i].playing) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && g_Player[i].playing) {
 			return true;
 		}
 	}
@@ -1296,7 +1296,7 @@ stock bool IsPlayersPlaying() {
 
 public void Frame_DelayReady(any data) {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i)) {
 			continue;
 		}
 		
