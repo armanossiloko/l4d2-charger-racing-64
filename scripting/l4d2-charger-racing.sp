@@ -415,6 +415,12 @@ public void OnConfigsExecuted() {
 }
 
 public void OnMapStart() {
+	char sMap[64];
+	GetCurrentMap(sMap, sizeof(sMap));
+	GetMapDisplayName(sMap, sMap, sizeof(sMap));
+
+	ModeLog("Loading data for map '%s'...", sMap);
+
 	g_ModelIndex = PrecacheModel("sprites/laserbeam.vmt");
 	g_HaloIndex = PrecacheModel("sprites/glow01.vmt");
 
@@ -429,10 +435,6 @@ public void OnMapStart() {
 	PrecacheModel(MODEL_ROCHELLE);
 	PrecacheModel(MODEL_COACH);
 	PrecacheModel(MODEL_ELLIS);
-
-	char sMap[64];
-	GetCurrentMap(sMap, sizeof(sMap));
-	GetMapDisplayName(sMap, sMap, sizeof(sMap));
 	
 	BuildPath(Path_SM, g_TracksPath, sizeof(g_TracksPath), "data/charger-racing-64/");
 
@@ -445,7 +447,7 @@ public void OnMapStart() {
 }
 
 public void OnMapEnd() {
-	SetTrack(NO_TRACK);
+	g_State.Init();
 }
 
 public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcast) {
@@ -458,6 +460,10 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 
 	//If we have any available tracks on the map, just pick the 1st one.
 	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
+		#if defined DEBUG
+		PrintToServer("No track is set on round start but a track is available, change to the first available one.");
+		#endif
+
 		g_State.track = 0;
 		g_API.Call_OnTrackSet(g_State.track);
 	}
@@ -930,6 +936,11 @@ public Action Timer_Tick(Handle timer) {
 		#endif
 
 		g_State.None(1);
+		return Plugin_Continue;
+	}
+
+	if (g_State.track == NO_TRACK) {
+		PrintHintTextToAll("No track is set, please set one.");
 		return Plugin_Continue;
 	}
 

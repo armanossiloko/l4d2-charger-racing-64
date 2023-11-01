@@ -959,5 +959,9 @@ bool SetTrack(int id, bool verbose = true) {
 
 	ParseObjects(g_TracksPath, g_State.track);
 
+	#if defined DEBUG
+	PrintToServer("Track set to index: %i", g_State.track);
+	#endif
+
 	return true;
 }
