@@ -80,6 +80,17 @@ public int MenuAction_Commands(Menu menu, MenuAction action, int param1, int par
 	return 0;
 }
 
+public Action Command_Track(int client, int args) {
+	char name[MAX_NAME_LENGTH];
+	if (g_State.track != NO_TRACK) {
+		strcopy(name, sizeof(name), g_Tracks[g_State.track].name);
+	} else {
+		strcopy(name, sizeof(name), "none");
+	}
+	CReplyToCommand(client, "%sTrack '%i/%i' is currently set to: %s", PLUGIN_TAG, g_State.track, g_TotalTracks, name);
+	return Plugin_Handled;
+}
+
 public Action Command_VoteTrack(int client, int args) {
 	if (!IsModeEnabled()) {
 		return Plugin_Continue;

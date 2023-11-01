@@ -185,6 +185,7 @@ public void OnPluginStart() {
 	//Player Commands
 	RegConsoleCmd2("sm_hud", Command_Hud, "Toggles the gamemodes HUD on or off.");
 	RegConsoleCmd2("sm_commands", Command_Commands, "Shows the available commands for the gamemode.");
+	RegConsoleCmd2("sm_track", Command_Track, "Prints out to chat which track is currently set.");
 
 	//Track Commands
 	RegAdminCmd2("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
@@ -244,16 +245,8 @@ public void OnPluginStart() {
 
 	//Second ticker and chat print
 	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
+
 	CPrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
-
-	RegAdminCmd("sm_changeteam", Command_ChangeTeam, ADMFLAG_GENERIC);
-}
-
-public Action Command_ChangeTeam(int client, int args) {
-	char team[16];
-	GetCmdArgString(team, sizeof(team));
-	ChangeClientTeam(client, StringToInt(team));
-	return Plugin_Handled;
 }
 
 public void OnPluginEnd() {
