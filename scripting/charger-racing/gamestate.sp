@@ -21,7 +21,11 @@ enum struct GameState {
 		this.group = 0;
 	}
 
-	void Preparing() {
+	void Preparing(int stage) {
+		#if defined DEBUG
+		PrintToServer("Starting the preparation phase [%i]...", stage);
+		#endif
+
 		this.status = STATUS_PREPARING;
 		g_API.Call_OnStatusChange(this.status);
 
@@ -88,7 +92,11 @@ enum struct GameState {
 		}
 	}
 
-	void None() {
+	void None(int stage) {
+		#if defined DEBUG
+		PrintToServer("State set to none [%i]...", stage);
+		#endif
+
 		this.status = STATUS_NONE;
 		g_API.Call_OnStatusChange(this.status);
 
@@ -210,7 +218,10 @@ enum struct GameState {
 		}
 
 		if (ready) {
+			#if defined DEBUG
 			PrintToServer("ready");
+			#endif
+			
 			this.Ready(false);
 		}
 	}
@@ -315,7 +326,7 @@ bool SetStatus(Status status) {
 		}
 		case STATUS_PREPARING: {
 			if (g_State.status == STATUS_NONE) {
-				g_State.Preparing();
+				g_State.Preparing(1);
 				g_API.Call_OnStatusChange(g_State.status);
 				return true;
 			}

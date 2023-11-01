@@ -377,6 +377,8 @@ public void OnConfigsExecuted() {
 
 		//Kick the bots on live load if there is any and set the state of the game to preparing.
 		KickBots();
+
+		g_State.Preparing(2);
 	}
 
 	char sParticle[64];
@@ -384,8 +386,6 @@ public void OnConfigsExecuted() {
 	if (strlen(sParticle) > 0) {
 		Precache_Particle_System(sParticle);
 	}
-
-	g_State.Preparing();
 
 	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing-64/");
 	if (!DirExists(g_ConfigsFolder)) {
@@ -748,6 +748,11 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 
 	g_Player[client].charging = false;
 	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+
+	//If the state is currently set to none when the first player spawns on the server then start the preparation period.
+	if (g_State.status == STATUS_NONE) {
+		g_State.Preparing(3);
+	}
 }
 
 public Action Timer_DelaySpawn(Handle timer, any userid) {
@@ -910,7 +915,8 @@ public Action Timer_Tick(Handle timer) {
 		#if defined DEBUG
 		PrintToServer("No players are available, stopping the ticker and setting the state to none.");
 		#endif
-		g_State.None();
+		
+		g_State.None(1);
 		return Plugin_Continue;
 	}
 
@@ -1034,8 +1040,8 @@ public void OnClientDisconnect(int client) {
 	}
 
 	//Empty server so set the state to none.
-	if (!IsPlayersAvailable()) {
-		g_State.None();
+	if (!IsPlayersAvailable() && !IsFakeClient(client)) {
+		g_State.None(2);
 	}
 }
 
@@ -1317,7 +1323,7 @@ public void Event_OnBotReplacePlayer(Event event, const char[] name, bool dontBr
 }
 
 public Action Timer_Prepare(Handle timer) {
-	g_State.Preparing();
+	g_State.Preparing(4);
 	return Plugin_Continue;
 }
 
