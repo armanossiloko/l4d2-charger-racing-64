@@ -937,7 +937,7 @@ public Action Timer_Tick(Handle timer) {
 	if (g_State.status == STATUS_PREPARING) {
 
 		char sTime[64];
-		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
+		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", false);
 		PrintHintTextToAll("Preparing to race... %s%s", sTime, g_State.paused ? " (Paused)" : "");
 
 		if (!g_State.paused) {
@@ -976,7 +976,7 @@ public Action Timer_Tick(Handle timer) {
 	}
 
 	char sTime[64];
-	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
+	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", false);
 	PrintHintTextToAll("Race ends in... %s", sTime);
 
 	if (!g_State.paused) {
