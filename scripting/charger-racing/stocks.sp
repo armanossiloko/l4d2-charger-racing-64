@@ -9,6 +9,23 @@ void ModeLog(const char[] format, any ...) {
 	PrintToServer("[Charger-Racing] %s", buffer);
 }
 
+void CreateFolders() {
+	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing-64/");
+	if (!DirExists(g_ConfigsFolder)) {
+		CreateDirectory(g_ConfigsFolder, 511);
+	}
+
+	BuildPath(Path_SM, g_DataFolder, sizeof(g_DataFolder), "data/charger-racing-64/");
+	if (!DirExists(g_DataFolder)) {
+		CreateDirectory(g_DataFolder, 511);
+	}
+
+	BuildPath(Path_SM, g_TracksPath, sizeof(g_TracksPath), "data/charger-racing-64/tracks/");
+	if (!DirExists(g_TracksPath)) {
+		CreateDirectory(g_TracksPath, 511);
+	}
+}
+
 void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] format, bool precision = false) {
 	int t = RoundToFloor(seconds);
 

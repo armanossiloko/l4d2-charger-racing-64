@@ -17,7 +17,7 @@
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
 
-#define DEBUG
+//#define DEBUG
 
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
 #define MAX_OBJECTS 128 //The total objects allowed per track and difficulty.
@@ -63,9 +63,11 @@ ConVar convar_Point_Current_Color;
 ConVar convar_Point_End_Color;
 
 //General
-char g_TracksPath[PLATFORM_MAX_PATH];
 char g_ConfigsFolder[PLATFORM_MAX_PATH];
+char g_DataFolder[PLATFORM_MAX_PATH];
+char g_TracksPath[PLATFORM_MAX_PATH];
 bool g_LateLoad;
+char g_CurrentMap[64];
 
 API g_API;
 GameState g_State;
@@ -243,6 +245,8 @@ public void OnPluginStart() {
 
 	g_Cookie_Hud = new Cookie("l4d2-charger-racing-64-hud", "Should the hud be shown or not?", CookieAccess_Public);
 
+	CreateFolders();
+
 	//Second ticker and chat print
 	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
 
@@ -359,8 +363,30 @@ public void OnConfigsExecuted() {
 	FindConVar("director_no_survivor_bots").BoolValue = true;
 	FindConVar("vs_max_team_switches").IntValue = 999;
 
+	char sParticle[64];
+	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
+
+	if (strlen(sParticle) > 0) {
+		Precache_Particle_System(sParticle);
+	}
+
+	char sPath[PLATFORM_MAX_PATH];
+
+	FormatEx(sPath, sizeof(sPath), "%spoints.cfg", g_ConfigsFolder);
+	ParsePoints(sPath);
+
+	FormatEx(sPath, sizeof(sPath), "%smodels.cfg", g_ConfigsFolder);
+	ParseModels(sPath);
+
+	Format(g_TracksPath, sizeof(g_TracksPath), "%stracks/%s.cfg", g_DataFolder, g_CurrentMap);
+	ParseTracks(g_TracksPath);
+
 	if (g_LateLoad) {
 		g_LateLoad = false;
+
+		#if defined DEBUG
+		PrintToServer("Late Load");
+		#endif
 
 		//Make sure players are preloaded on live load who are already on the server.
 		for (int i = 1; i <= MaxClients; i++) {
@@ -386,33 +412,13 @@ public void OnConfigsExecuted() {
 
 		g_State.Preparing(2);
 	}
-
-	char sParticle[64];
-	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
-	if (strlen(sParticle) > 0) {
-		Precache_Particle_System(sParticle);
-	}
-
-	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing-64/");
-	if (!DirExists(g_ConfigsFolder)) {
-		CreateDirectory(g_ConfigsFolder, 511);
-	}
-
-	char sPath[PLATFORM_MAX_PATH];
-
-	FormatEx(sPath, sizeof(sPath), "%spoints.cfg", g_ConfigsFolder);
-	ParsePoints(sPath);
-
-	FormatEx(sPath, sizeof(sPath), "%smodels.cfg", g_ConfigsFolder);
-	ParseModels(sPath);
 }
 
 public void OnMapStart() {
-	char sMap[64];
-	GetCurrentMap(sMap, sizeof(sMap));
-	GetMapDisplayName(sMap, sMap, sizeof(sMap));
+	GetCurrentMap(g_CurrentMap, sizeof(g_CurrentMap));
+	GetMapDisplayName(g_CurrentMap, g_CurrentMap, sizeof(g_CurrentMap));
 
-	ModeLog("Loading data for map '%s'...", sMap);
+	ModeLog("Loading data for map '%s'...", g_CurrentMap);
 
 	g_ModelIndex = PrecacheModel("sprites/laserbeam.vmt");
 	g_HaloIndex = PrecacheModel("sprites/glow01.vmt");
@@ -428,25 +434,21 @@ public void OnMapStart() {
 	PrecacheModel(MODEL_ROCHELLE);
 	PrecacheModel(MODEL_COACH);
 	PrecacheModel(MODEL_ELLIS);
-	
-	BuildPath(Path_SM, g_TracksPath, sizeof(g_TracksPath), "data/charger-racing-64/");
-
-	if (!DirExists(g_TracksPath)) {
-		CreateDirectory(g_TracksPath, 511);
-	}
-
-	Format(g_TracksPath, sizeof(g_TracksPath), "%s%s.cfg", g_TracksPath, sMap);
-	ParseTracks(g_TracksPath);
 }
 
 public void OnMapEnd() {
 	g_State.Init();
+	ClearTracks();
 }
 
 public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcast) {
 	if (!IsModeEnabled()) {
 		return;
 	}
+
+	#if defined DEBUG
+	PrintToServer(name);
+	#endif
 
 	//By default, we don't have a track to pick at the start of the round.
 	SetTrack(NO_TRACK);
@@ -764,6 +766,16 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	//If the state is currently set to none when the first player spawns on the server then start the preparation period.
 	if (g_State.status == STATUS_NONE) {
 		g_State.Preparing(3);
+	}
+
+	//If we have any available tracks on the map, just pick the 1st one.
+	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
+		#if defined DEBUG
+		PrintToServer("No track is set on player spawn but a track is available, change to the first available one.");
+		#endif
+
+		g_State.track = 0;
+		g_API.Call_OnTrackSet(g_State.track);
 	}
 }
 

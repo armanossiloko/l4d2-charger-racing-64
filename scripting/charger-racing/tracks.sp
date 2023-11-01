@@ -78,12 +78,17 @@ enum struct Track {
 }
 
 void ParseTracks(const char[] file) {
-	for (int i = 0; i <= MAX_TRACKS; i++) {
-		g_Tracks[i].Delete();
-	}
-	g_TotalTracks = 0;
+	ClearTracks();
+
+	#if defined DEBUG
+	PrintToServer("Attempting to parse tracks file: %s", file);
+	#endif
 
 	if (!FileExists(file)) {
+		#if defined DEBUG
+		PrintToServer("Tracks file '%s' does not exist.", file);
+		#endif
+
 		return;
 	}
 
@@ -123,6 +128,13 @@ void ParseTracks(const char[] file) {
 
 	delete kv;
 	ModeLog("Parsed %d tracks from file: %s", g_TotalTracks, file);
+}
+
+void ClearTracks() {
+	for (int i = 0; i <= MAX_TRACKS; i++) {
+		g_Tracks[i].Delete();
+	}
+	g_TotalTracks = 0;
 }
 
 void SaveTracks(const char[] file) {
@@ -943,6 +955,10 @@ public int MenuHandler_AskConfirmSetTrack(Menu menu, MenuAction action, int para
 
 bool SetTrack(int id, bool verbose = true) {
 	if (id < NO_TRACK || id > g_TotalTracks) {
+		#if defined DEBUG
+		PrintToServer("Track fail set: %i", g_State.track);
+		#endif
+
 		return false;
 	}
 
