@@ -170,6 +170,7 @@ public void OnPluginStart() {
 	convar_Spawns_Items.AddChangeHook(OnItemSpawnsChanged);
 	convar_Spawns_Doors.AddChangeHook(OnDoorsSpawnsChanged);
 	convar_Spawns_Infected.AddChangeHook(OnInfectedSpawnsChanged);
+	convar_Preparation_Timer.AddChangeHook(OnPreparationTimeChanged);
 
 	//Events
 	HookEvent("round_start", Event_OnRoundStart);
@@ -326,6 +327,18 @@ public void OnInfectedSpawnsChanged(ConVar convar, const char[] oldValue, const 
 	}
 
 	DeleteInfected();
+}
+
+public void OnPreparationTimeChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+	if (StrEqual(oldValue, newValue)) {
+		return;
+	}
+
+	float timer = StringToFloat(newValue);
+
+	if (g_State.status == STATUS_PREPARING && g_State.timer > timer) {
+		g_State.timer = timer;
+	}
 }
 
 public Action Timer_Seconds(Handle timer) {
@@ -1030,6 +1043,10 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 }
 
 public void OnClientDisconnect(int client) {
+	if (IsFakeClient(client)) {
+		return;
+	}
+
 	//Player disconnected from the game while racing so check if we need to pop queue or end the race since they're the last one.
 	if (IsPlayerAlive(client) && !g_Player[client].spectating && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
 		if (AllPlayersFinished()) {
@@ -1040,7 +1057,7 @@ public void OnClientDisconnect(int client) {
 	}
 
 	//Empty server so set the state to none.
-	if (!IsPlayersAvailable() && !IsFakeClient(client)) {
+	if (!IsPlayersAvailable()) {
 		g_State.None(2);
 	}
 }
