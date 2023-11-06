@@ -213,7 +213,7 @@ void IsNearNode(int client, int index) {
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
 	//float average = g_Player[client].GetAverageSpeed();
 	//int points = RoundToCeil(average) / 5;
-	if (g_Player[client].currentnode != index) {
+	if (g_Player[client].currentnode < index) {
 		int points = g_Points.Get(g_State.mode, "checkpoint");
 		g_Player[client].speeds.Clear();
 
