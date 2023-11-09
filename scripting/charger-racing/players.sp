@@ -11,7 +11,6 @@ enum struct Player {
 	bool finished;		//Has this player finished the race?
 	float time;			//How many precise seconds has it been since the race started?
 	int spawnent;		//The entity index of the prop or bot being created.
-	bool spectating;	//Is this player currently spectating the match.
 
 	void Init(int client) {
 		this.client = client;
@@ -26,7 +25,6 @@ enum struct Player {
 		this.finished = false;
 		this.time = 0.0;
 		this.spawnent = -1;
-		this.spectating = false;
 	}
 
 	void SetPoints(int points) {
@@ -158,6 +156,5 @@ enum struct Player {
 		this.finished = false;
 		this.time = 0.0;
 		this.spawnent = -1;
-		this.spectating = false;
 	}
 }

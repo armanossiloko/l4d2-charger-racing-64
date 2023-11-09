@@ -154,7 +154,6 @@ enum struct GameState {
 				continue;
 			}
 
-			g_Player[i].spectating = true;
 			ChangeClientTeam(i, view_as<int>(L4D_TEAM_SPECTATOR));
 		}
 
@@ -172,7 +171,6 @@ enum struct GameState {
 						continue;
 					}
 
-					g_Player[client].spectating = false;
 					CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up", client);
 
 					ChangeClientTeam(client, view_as<int>(L4D_TEAM_INFECTED));
@@ -189,7 +187,6 @@ enum struct GameState {
 							continue;
 						}
 
-						g_Player[client].spectating = false;
 						CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up for team", client);
 
 						ChangeClientTeam(client, view_as<int>(L4D_TEAM_INFECTED));
@@ -209,7 +206,7 @@ enum struct GameState {
 
 		//Teleport the players to the starting line and freeze them in place.
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i) || g_Player[i].spectating) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i)) {
 				continue;
 			}
 

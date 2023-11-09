@@ -795,10 +795,6 @@ public void L4D_OnEnterGhostState(int client) {
 
 	TeleportToSurvivorPos(client);
 
-	if (g_Player[client].spectating) {
-		ChangeClientTeam(client, 1);
-	}
-
 	#if defined DEBUG
 	PrintToServer("%N has had a ghost state occur.", client);
 	#endif
@@ -1124,7 +1120,7 @@ public void OnClientDisconnect(int client) {
 	}
 
 	//Player disconnected from the game while racing so check if we need to pop queue or end the race since they're the last one.
-	if (IsClientInGame(client) && IsPlayerAlive(client) && !g_Player[client].spectating && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
+	if (IsClientInGame(client) && IsPlayerAlive(client) && !g_Player[client].playing && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
 		if (AllPlayersFinished()) {
 			EndRace();
 		} else {
