@@ -22,10 +22,6 @@ enum struct GameState {
 	}
 
 	void Preparing(int stage) {
-		#if defined DEBUG
-		PrintToServer("Starting the preparation phase [%i]...", stage);
-		#endif
-
 		this.status = STATUS_PREPARING;
 		g_API.Call_OnStatusChange(this.status);
 
@@ -95,10 +91,6 @@ enum struct GameState {
 	}
 
 	void None(int stage) {
-		#if defined DEBUG
-		PrintToServer("State set to none [%i]...", stage);
-		#endif
-
 		this.status = STATUS_NONE;
 		g_API.Call_OnStatusChange(this.status);
 
@@ -115,7 +107,7 @@ enum struct GameState {
 		switch (this.mode) {
 			case MODE_SINGLES, MODE_GROUPS: {
 				for (int i = 1; i <= MaxClients; i++) {
-					if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
 						continue;
 					}
 
@@ -150,11 +142,11 @@ enum struct GameState {
 
 	void PopQueue(bool ready) {		
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || IsFakeClient(i)) {
+			if (!IsClientInGame(i)) {
 				continue;
 			}
 
-			ChangeClientTeam(i, view_as<int>(L4D_TEAM_SPECTATOR));
+			L4D_ChangeClientTeam(i, L4DTeam_Spectator);
 		}
 
 		int[] players = new int[MaxClients];
@@ -173,7 +165,7 @@ enum struct GameState {
 
 					CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up", client);
 
-					ChangeClientTeam(client, view_as<int>(L4D_TEAM_INFECTED));
+					L4D_ChangeClientTeam(client, L4DTeam_Infected);
 					L4D_RespawnPlayer(client);
 				}
 			}
@@ -189,7 +181,7 @@ enum struct GameState {
 
 						CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up for team", client);
 
-						ChangeClientTeam(client, view_as<int>(L4D_TEAM_INFECTED));
+						L4D_ChangeClientTeam(client, L4DTeam_Infected);
 						L4D_RespawnPlayer(client);
 					}
 				}
@@ -206,22 +198,14 @@ enum struct GameState {
 
 		//Teleport the players to the starting line and freeze them in place.
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i)) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i)) {
 				continue;
 			}
 
 			if (teleport) {
-				#if defined DEBUG
-				PrintToServer("%N teleported to the starting node.", i);
-				#endif
-					
 				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 				LookAtPoint(i, origin2);
 			} else {
-				#if defined DEBUG
-				PrintToServer("%N teleported to a survivor position.", i);
-				#endif
-
 				TeleportToSurvivorPos(i);
 			}
 
@@ -230,10 +214,6 @@ enum struct GameState {
 		}
 
 		if (ready) {
-			#if defined DEBUG
-			PrintToServer("ready");
-			#endif
-
 			this.Ready(false);
 		}
 	}
@@ -243,10 +223,10 @@ void OpenModesMenu(int client) {
 	Menu menu = new Menu(MenuHandler_Modes);
 	menu.SetTitle("Select a mode:");
 
-	menu.AddItem("Players", "Players");
-	menu.AddItem("Groups", "Groups");
-	menu.AddItem("Teams", "Teams");
-	menu.AddItem("GroupTeams", "Group Teams");
+	menu.AddItem("Players", "Players\n - Players play 1 at a time.");
+	menu.AddItem("Groups", "Groups\n - All players play at once.");
+	menu.AddItem("Teams", "Teams\n - Teams play 1 at a time.");
+	menu.AddItem("GroupTeams", "Group Teams\n - All teams play at once.");
 
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -268,11 +248,7 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 				mode = MODE_GROUPTEAMS;
 			}
 
-			if (SetMode(mode)) {
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "mode set successfully", param1);
-			} else {
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "mode set failure", param1);
-			}
+			SetMode(mode);
 
 			OpenModesMenu(param1);
 		}
@@ -286,17 +262,17 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 }
 
 bool SetMode(Modes mode) {
-	if (mode < MODE_SINGLES || mode > MODE_TEAMS) {
+	if (mode < MODE_SINGLES || mode > MODE_GROUPTEAMS) {
 		return false;
 	}
 
 	char sName[64];
 	GetModeName(mode, sName, sizeof(sName));
 
+	CPrintToChatAll("%s%t", PLUGIN_TAG, "mode changing to", sName);
+
 	g_State.mode = mode;
 	g_API.Call_OnModeSet(g_State.mode);
-
-	CPrintToChatAll("%s%t", PLUGIN_TAG, "mode set to", sName);
 
 	return true;
 }

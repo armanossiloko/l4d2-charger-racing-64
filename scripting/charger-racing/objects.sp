@@ -267,7 +267,7 @@ int FindLatestBot() {
 			continue;
 		}
 
-		if (IsPlayerAlive(i) && IsFakeClient(i)) {
+		if (IsPlayerAlive(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor) {
 			return i;
 		}
 	}

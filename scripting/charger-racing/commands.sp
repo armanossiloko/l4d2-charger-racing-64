@@ -33,7 +33,7 @@ public Action Command_Hud(int client, int args) {
 	CPrintToChat(client, "%s%T%T", PLUGIN_TAG, "hud status", client, (g_Player[client].hud ? "hud enabled" : "hud disabled"), client);
 
 	if (AreClientCookiesCached(client)) {
-		g_Cookie_Hud.Set(client, (g_Player[client].hud ? "1" : "0"));
+		g_Cookies.hud.Set(client, (g_Player[client].hud ? "1" : "0"));
 	}
 
 	return Plugin_Handled;
@@ -261,11 +261,7 @@ public Action Command_SetMode(int client, int args) {
 		char sMode[16];
 		GetCmdArg(1, sMode, sizeof(sMode));
 
-		if (SetMode(view_as<Modes>(StringToInt(sMode)))) {
-			CPrintToChat(client, "%s%T", PLUGIN_TAG, "mode set successfully", client);
-		} else {
-			CPrintToChat(client, "%s%T", PLUGIN_TAG, "mode set failure", client);
-		}
+		SetMode(view_as<Modes>(StringToInt(sMode)));
 
 		return Plugin_Handled;
 	}

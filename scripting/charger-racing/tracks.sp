@@ -80,15 +80,7 @@ enum struct Track {
 void ParseTracks(const char[] file) {
 	ClearTracks();
 
-	#if defined DEBUG
-	PrintToServer("Attempting to parse tracks file: %s", file);
-	#endif
-
 	if (!FileExists(file)) {
-		#if defined DEBUG
-		PrintToServer("Tracks file '%s' does not exist.", file);
-		#endif
-
 		return;
 	}
 
@@ -178,7 +170,7 @@ void SaveTracks(const char[] file) {
 void OnNodeTick(int index, float origin[3]) {
 	float pos[3];
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
 			continue;
 		}
 
@@ -957,10 +949,6 @@ public int MenuHandler_AskConfirmSetTrack(Menu menu, MenuAction action, int para
 
 bool SetTrack(int id, bool verbose = true) {
 	if (id < NO_TRACK || id > g_TotalTracks) {
-		#if defined DEBUG
-		PrintToServer("Track fail set: %i", g_State.track);
-		#endif
-
 		return false;
 	}
 
@@ -977,11 +965,7 @@ bool SetTrack(int id, bool verbose = true) {
 
 	ParseObjects(g_TracksPath, g_State.track);
 	CreateTrackEnts();
-
-	#if defined DEBUG
-	PrintToServer("Track set to index: %i", g_State.track);
-	#endif
-
+	
 	return true;
 }
 

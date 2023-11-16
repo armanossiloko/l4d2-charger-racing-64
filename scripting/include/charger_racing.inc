@@ -16,8 +16,8 @@ enum Status {
 enum Modes {
 	MODE_SINGLES,		//All players for themselves one by one and the player with the most points wins.
 	MODE_GROUPS,			//Same as singles but all at once.
-	MODE_TEAMS,			//Players are split into teams and race one by one and the team with the most points wins.
-	MODE_GROUPTEAMS		//NOT IMPLEMENTED
+	MODE_TEAMS,			//Players are split into teams and race one team at a time and the team with the most points wins.
+	MODE_GROUPTEAMS		//Same as teams but all at once.
 }
 
 //Difficulties for tracks are just tags to help tell players how easy or hard this track is.

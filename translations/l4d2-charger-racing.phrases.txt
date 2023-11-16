@@ -1,5 +1,11 @@
 "Phrases"
 {
+	"prepare center hud"
+	{
+		"#format"	"{1:s},{2:s},{3:s}"
+		"en"	"Preparing to race {1}... {2}{3}"
+	}
+
 	"voted for track"
 	{
 		"#format"	"{1:N},{2:s},{3:s}"
@@ -130,20 +136,10 @@
 		"en"	"You're UP! Complete the race and score as many points as possible for your team."
 	}
 
-	"mode set successfully"
-	{
-		"en"	"Mode has been set."
-	}
-
-	"mode set failure"
-	{
-		"en"	"Failed to set mode."
-	}
-
-	"mode set to"
+	"mode changing to"
 	{
 		"#format"	"{1:s}"
-		"en"	"Mode has been set to: {olive}{1}"
+		"en"	"Mode is being changed to: {olive}{1}"
 	}
 
 	"points lost for skipping nodes"

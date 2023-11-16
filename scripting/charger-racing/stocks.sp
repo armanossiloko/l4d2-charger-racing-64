@@ -1,3 +1,7 @@
+bool IsModeEnabled() {
+	return convar_Enabled.BoolValue;
+}
+
 void ModeLog(const char[] format, any ...) {
 	char buffer[1024];
 	VFormat(buffer, sizeof(buffer), format, 2);
@@ -10,17 +14,17 @@ void ModeLog(const char[] format, any ...) {
 }
 
 void CreateFolders() {
-	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing-64/");
+	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing/");
 	if (!DirExists(g_ConfigsFolder)) {
 		CreateDirectory(g_ConfigsFolder, 511);
 	}
 
-	BuildPath(Path_SM, g_DataFolder, sizeof(g_DataFolder), "data/charger-racing-64/");
+	BuildPath(Path_SM, g_DataFolder, sizeof(g_DataFolder), "data/charger-racing/");
 	if (!DirExists(g_DataFolder)) {
 		CreateDirectory(g_DataFolder, 511);
 	}
 
-	BuildPath(Path_SM, g_TracksPath, sizeof(g_TracksPath), "data/charger-racing-64/tracks/");
+	BuildPath(Path_SM, g_TracksPath, sizeof(g_TracksPath), "data/charger-racing/tracks/");
 	if (!DirExists(g_TracksPath)) {
 		CreateDirectory(g_TracksPath, 511);
 	}
@@ -141,7 +145,7 @@ public bool TraceEntityFilterNone(int entity, int contentsMask, any data) {
 void DropVictim(int client, int target, int stagger = 3)
 {
 	//Needs to be called otherwise it crashes.
-	SDKCall(g_hSDK_OnPummelEnded, client, "", target);
+	SDKCall(g_GameData.OnPummelEnded, client, "", target);
 
 	SetEntPropEnt(client, Prop_Send, "m_carryVictim", -1);
 	SetEntPropEnt(target, Prop_Send, "m_carryAttacker", -1);
@@ -320,7 +324,7 @@ void GetCharacterName(int index, char[] buffer, int size) {
 	}
 }
 
-stock int[] GetConVarColor(ConVar convar) {
+int[] GetConVarColor(ConVar convar) {
 	int colors[4] = {255, 255, 255, 255};
 
 	char sBuffer[128];
@@ -375,4 +379,302 @@ void LookAtPoint(int client, float point[3]){
 	}
 	angles[1] -= 180;
 	TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+}
+
+int FindAvailablePlayer() {
+	int[] clients = new int[MaxClients];
+	int total;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || HasGroup(i)) {
+			continue;
+		}
+
+		clients[total++] = i;
+	}
+
+	if (total < 1) {
+		return -1;
+	}
+
+	return clients[GetRandomInt(0, total - 1)];
+}
+
+bool IsPlayersAvailable() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+int GetTotalPlayers() {
+	int amount;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+			continue;
+		}
+
+		amount++;
+	}
+
+	return amount;
+}
+
+public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2) {
+	return 0;
+}
+
+bool AllPlayersFinished() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (g_Player[i].playing && !g_Player[i].finished) {
+			return false;
+		}
+	}
+	return true;
+}
+
+stock bool IsPlayersPlaying() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && g_Player[i].playing) {
+			return true;
+		}
+	}
+	return false;
+}
+
+int GetWinnerForSingles() {
+	int winner;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || !g_Player[i].playing) {
+			continue;
+		}
+
+		if (winner == 0) {
+			winner = i;
+			continue;
+		}
+
+		if (g_Player[i].points > g_Player[winner].points) {
+			winner = i;
+		}
+	}
+
+	return winner;
+}
+
+int GetWinnerGroup() {
+	int winner;
+	int winnerpoints;
+	int points;
+
+	for (int group = 0; group < g_Groups.GetTotalGroups(); group++) {
+		points = 0;
+
+		for (int i = 1; i <= MaxClients; i++) {
+			if (!IsClientInGame(i) || !g_Groups.IsInGroup(group, i)) {
+				continue;
+			}
+
+			points += g_Player[i].points;
+		}
+
+		if (winner == 0) {
+			winner = group;
+			winnerpoints = points;
+			continue;
+		}
+
+		if (points > winnerpoints) {
+			winner = group;
+			winnerpoints = points;
+		}
+	}
+
+	return winner;
+}
+
+void TeleportToSurvivorPos(int client) {
+	int positions[16];
+	int total;
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "info_survivor_position")) != -1) {
+		positions[total++] = entity;
+	}
+
+	if (total < 1) {
+		return;
+	}
+
+	int random = positions[GetRandomInt(0, total - 1)];
+
+	if (!IsValidEntity(random)) {
+		return;
+	}
+
+	float vecOrigin[3];
+	GetAbsOrigin(random, vecOrigin);
+
+	TeleportEntity(client, vecOrigin, NULL_VECTOR, NULL_VECTOR);
+}
+
+void GetDifficultyName(Difficulty difficulty, char[] buffer, int size) {
+	switch (difficulty) {
+		case DIFFICULTY_EASY: {
+			strcopy(buffer, size, "Easy");
+		}
+
+		case DIFFICULTY_NORMAL: {
+			strcopy(buffer, size, "Normal");
+		}
+
+		case DIFFICULTY_HARD: {
+			strcopy(buffer, size, "Hard");
+		}
+
+		case DIFFICULTY_EXPERT: {
+			strcopy(buffer, size, "Expert");
+		}
+
+		case DIFFICULTY_IMPOSSIBLE: {
+			strcopy(buffer, size, "Impossible");
+		}
+	}
+}
+
+int GetChargerTeamScore(int team) {
+	int score;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected && g_Player[i].team == team) {
+			score += g_Player[i].points;
+		}
+	}
+
+	return score;
+}
+
+int GetTopScores(int max, int[] clients, int[] scores, bool finished = false) {
+	int total = max;
+
+	if (total >= GetTeamAliveCount(3)) {
+		total = GetTeamAliveCount(3);
+	}
+
+	int val;
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || L4D_GetClientTeam(i) != L4DTeam_Infected || (finished && g_Player[i].finished)) {
+			continue;
+		}
+
+		clients[val++] = i;
+	}
+
+	SortCustom1D(clients, val, OnSortScores);
+
+	for (int i = 0; i < total; i++) {
+		scores[i] = g_Player[clients[i]].points;
+	}
+
+	return total;
+}
+
+public int OnSortScores(int elem1, int elem2, const int[] array, Handle hndl) {
+	if (elem1 > elem2) {
+		return -1;
+	} else if (elem1 < elem2) {
+		return 1;
+	}
+
+	return 0;
+}
+
+void KickBots() {
+	for (int i = 0; i < g_TotalObjects; i++) {
+		if (g_Objects[i].IsSurvivor()) {
+			g_Objects[i].Delete();
+		}
+	}
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor) {
+			KickClient(i);
+		}
+	}
+
+	DeleteItems();
+	DeleteDoors();
+	DeleteInfected();
+	DeleteElevators();
+}
+
+void DeleteItems() {
+	if (!convar_Spawns_Items.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+
+	while ((entity = FindEntityByClassname(entity, "item_*")) != -1) {
+		RemoveEntity(entity);
+	}
+
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "weapon_*")) != -1) {
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+		
+		if (owner < 1 || owner > MaxClients) {
+			RemoveEntity(entity);
+		}
+	}
+}
+
+void DeleteDoors() {
+	if (!convar_Spawns_Doors.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_door*")) != -1) {
+		RemoveEntity(entity);
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "momentary_door")) != -1) {
+		RemoveEntity(entity);
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1) {
+		RemoveEntity(entity);
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_wall*")) != -1) {
+		RemoveEntity(entity);
+	}
+}
+
+void DeleteInfected() {
+	if (!convar_Spawns_Infected.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "infected")) != -1) {
+		RemoveEntity(entity);
+	}
+}
+
+void DeleteElevators() {
+	if (!convar_Spawns_Infected.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_elevator")) != -1) {
+		RemoveEntity(entity);
+	}
 }

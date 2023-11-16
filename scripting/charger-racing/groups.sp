@@ -84,3 +84,13 @@ enum struct Group {
 		this.groups.Clear();
 	}
 }
+
+bool HasGroup(int client) {
+	for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
+		if (g_Groups.IsInGroup(i, client)) {
+			return true;
+		}
+	}
+
+	return false;
+}
