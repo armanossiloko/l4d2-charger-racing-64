@@ -168,6 +168,8 @@ void SaveTracks(const char[] file) {
 }
 
 void OnNodeTick(int index, float origin[3]) {
+	float radius = convar_Node_Radius.FloatValue;
+
 	float pos[3];
 	for (int i = 1; i <= MaxClients; i++) {
 		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
@@ -176,7 +178,7 @@ void OnNodeTick(int index, float origin[3]) {
 
 		pos = GetOrigin(i);
 
-		if (GetDistance(origin, pos) <= 100.0) {
+		if (GetDistance(origin, pos) <= radius) {
 			IsNearNode(i, index);
 		}
 	}
@@ -194,18 +196,33 @@ void IsNearNode(int client, int index) {
 	}
 
 	//If a player tries to take an unintended shortcut then stop progress.
-	if (g_Player[client].currentnode < (index - 1)) {
+	if (convar_Skip_Nodes.BoolValue && g_Player[client].currentnode < (index - 1)) {
+		//Count how many nodes they've missed total.
+		int missed = (index - 1) - g_Player[client].currentnode;
 		int points = g_Points.Get(g_State.mode, "skipping-checkpoint");
+
+		//Deduct points based on each node so if it's 2 points per node and they miss 3 nodes then they lose 6.
+		int total;
+		for (int i = 0; i < missed; i++) {
+			total += points;
+		}
+
+		//Update their points and tell them how many they missed.
 		g_Player[client].AddPoints(points);
-		CPrintToChat(client, "%s%T", PLUGIN_TAG, "points lost for skipping nodes", client, points);
+		CPrintToChat(client, "%s%T", PLUGIN_TAG, "points lost for skipping nodes", client, total, missed);
+
+		//Update their current node.
 		g_Player[client].currentnode = index;
+
 		return;
 	}
 
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
 	//float average = g_Player[client].GetAverageSpeed();
 	//int points = RoundToCeil(average) / 5;
+
 	if (g_Player[client].currentnode < index) {
+		//Give them points based on reaching the checkpoint and clear their speed calculations.
 		int points = g_Points.Get(g_State.mode, "checkpoint");
 		g_Player[client].speeds.Clear();
 
@@ -218,8 +235,8 @@ void IsNearNode(int client, int index) {
 		g_Player[client].AddPoints(points);
 		CPrintToChat(client, "%s%T", PLUGIN_TAG, "points gained for reaching node", client, index, points);
 
+		//Update their current node.
 		g_Player[client].currentnode = index;
-		//PrintHintText(client, "Node %i reached!", index);
 	}
 }
 
@@ -278,16 +295,17 @@ void IsNearFinish(int client) {
 
 					points = g_Points.Get(g_State.mode, "winner");
 
-					int total; int temp;
+					int total; int temp; int player;
 					for (int i = 0; i <= MaxClients; i++) {
 						temp = points;
+						player = players[i];
 
-						if (L4D2_GetInfectedAttacker(i) != -1) {
+						if (L4D2_GetInfectedAttacker(player) != -1) {
 							temp += g_Points.Get(g_State.mode, "survivor");
 						}
 
-						g_Player[players[i]].AddPoints(temp);
-						total += g_Player[players[i]].points;
+						g_Player[player].AddPoints(temp);
+						total += g_Player[player].points;
 					}
 
 					CPrintToChatAll("%s%t", PLUGIN_TAG, "winner for team", group, total);

@@ -144,8 +144,8 @@
 
 	"points lost for skipping nodes"
 	{
-		"#format"	"{1:i}"
-		"en"	"You have lost {olive}{1} {default}points for skipping node(s)."
+		"#format"	"{1:i},{2:i}"
+		"en"	"You have lost {olive}{1} {default}points for skipping {olive}{2} {default}node."
 	}
 
 	"points gained for reaching node"

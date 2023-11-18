@@ -63,6 +63,8 @@ ConVar convar_Point_End_Radius;
 ConVar convar_Point_Start_Color;
 ConVar convar_Point_Current_Color;
 ConVar convar_Point_End_Color;
+ConVar convar_Skip_Nodes;
+ConVar convar_Node_Radius;
 
 //General
 char g_ConfigsFolder[PLATFORM_MAX_PATH];
@@ -174,6 +176,8 @@ public void OnPluginStart() {
 	convar_Point_Start_Color = CreateConVar("sm_l4d2_charger_racing_start_color", "255, 0, 0, 255", "What should the color of the starting node be?", FCVAR_NOTIFY);
 	convar_Point_Current_Color = CreateConVar("sm_l4d2_charger_racing_current_color", "255, 255, 255, 255", "What should the color of the current node be?", FCVAR_NOTIFY);
 	convar_Point_End_Color = CreateConVar("sm_l4d2_charger_racing_end_color", "0, 0, 255, 255", "What should the color of the end node be?", FCVAR_NOTIFY);
+	convar_Skip_Nodes = CreateConVar("sm_l4d2_charger_racing_skip_nodes", "1", "Should we calculate and deduct points for players skipping nodes?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Node_Radius = CreateConVar("sm_l4d2_charger_racing_node_radius", "100", "How many units should nodes be interacted with in terms of size?", FCVAR_NOTIFY, true, 0.0);
 	AutoExecConfig();
 
 	//ConVar Change Hooks

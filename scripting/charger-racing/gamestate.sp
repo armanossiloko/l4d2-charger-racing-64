@@ -128,10 +128,11 @@ enum struct GameState {
 					total = 0;
 
 					for (int x = 0; x < players; x++) {
-						if ((clients[total++] = FindAvailablePlayer()) == -1) {
+						if ((clients[total] = FindAvailablePlayer()) == -1) {
 							break;
 						}
 						CPrintToChat(clients[total], "%s%T", PLUGIN_TAG, "added to group queue", clients[total], i);
+						total++
 					}
 
 					g_Groups.AddGroup(clients, total);
