@@ -26,6 +26,7 @@ public Action Command_Hud(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -45,6 +46,7 @@ public Action Command_Commands(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -81,13 +83,34 @@ public int MenuAction_Commands(Menu menu, MenuAction action, int param1, int par
 }
 
 public Action Command_Track(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
 	char name[MAX_NAME_LENGTH];
 	if (g_State.track != NO_TRACK) {
 		strcopy(name, sizeof(name), g_Tracks[g_State.track].name);
 	} else {
 		strcopy(name, sizeof(name), "none");
 	}
+
 	CReplyToCommand(client, "%sTrack '%i/%i' is currently set to: %s", PLUGIN_TAG, g_State.track, g_TotalTracks, name);
+
+	return Plugin_Handled;
+}
+
+public Action Command_Stats(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	OpenStatsPanel(client);
+
 	return Plugin_Handled;
 }
 
@@ -131,6 +154,7 @@ public Action Command_ReloadTracks(int client, int args) {
 
 	ParseTracks(g_TracksPath);
 	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply reloaded tracks", client, g_TracksPath);
+
 	return Plugin_Handled;
 }
 
@@ -141,12 +165,18 @@ public Action Command_SaveTracks(int client, int args) {
 
 	SaveTracks(g_TracksPath);
 	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply saved all tracks", client, g_TracksPath);
+
 	return Plugin_Handled;
 }
 
 public Action Command_CreateTrack(int client, int args) {
 	if (!IsModeEnabled()) {
 		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		return Plugin_Handled;
 	}
 
 	g_CreatingTrack[client].Init();
@@ -161,11 +191,28 @@ public Action Command_DeleteTrack(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
 	if (args > 0) {
+		char search[MAX_NAME_LENGTH];
+		GetCmdArgString(search, sizeof(search));
 
+		int track = StringToInt(search);
+
+		if (!IsStringNumeric(search)) {
+			track = FindTrack(search);
+		}
+
+		if (track == NO_TRACK) {
+			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "track not found", client);
+			return Plugin_Handled;
+		}
+
+		AskConfirmDeleteTrack(client, track);
+
+		return Plugin_Handled;
 	}
 
 	OpenTracksMenu(client, Action_Delete);
@@ -179,11 +226,28 @@ public Action Command_EditTrack(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
 	if (args > 0) {
+		char search[MAX_NAME_LENGTH];
+		GetCmdArgString(search, sizeof(search));
 
+		int track = StringToInt(search);
+
+		if (!IsStringNumeric(search)) {
+			track = FindTrack(search);
+		}
+
+		if (track == NO_TRACK) {
+			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "track not found", client);
+			return Plugin_Handled;
+		}
+
+		OpenTrackEditorMenu(client, track);
+
+		return Plugin_Handled;
 	}
 
 	OpenTracksMenu(client, Action_Edit);
@@ -197,6 +261,7 @@ public Action Command_SetTrack(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -214,6 +279,7 @@ public Action Command_SetTrack(int client, int args) {
 	}
 
 	OpenTracksMenu(client, Action_Set);
+
 	return Plugin_Handled;
 }
 
@@ -254,6 +320,7 @@ public Action Command_SetMode(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -277,6 +344,7 @@ public Action Command_SpawnSurvivor(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -300,6 +368,7 @@ public Action Command_SpawnProp(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -329,6 +398,7 @@ public Action Command_SpawnBot(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -358,6 +428,7 @@ public Action Command_Delete(int client, int args) {
 	}
 
 	if (client < 1) {
+		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -416,8 +487,14 @@ public Action Command_Pause(int client, int args) {
 }
 
 public Action Command_State(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+	
 	char name[64];
 	GetStateDisplayName(g_State.status, name, sizeof(name));
+
 	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "state status", client, name);
+
 	return Plugin_Handled;
 }

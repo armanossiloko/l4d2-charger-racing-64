@@ -280,8 +280,18 @@ void IsNearFinish(int client) {
 					}
 					
 					g_Player[winner].AddPoints(points);
+
+					g_Player[winner].stats.wins++;
+					IncrementStat(winner, "wins");
 					
 					CPrintToChatAll("%s%t", PLUGIN_TAG, "winner for player", winner, g_Player[winner].points);
+
+					for (int i = 1; i <= MaxClients; i++) {
+						if (IsClientAuthorized(i) && winner != i) {
+							g_Player[i].stats.losses++;
+							IncrementStat(i, "losses");
+						}
+					}
 				}
 			}
 			case MODE_TEAMS, MODE_GROUPTEAMS: {
@@ -306,6 +316,16 @@ void IsNearFinish(int client) {
 
 						g_Player[player].AddPoints(temp);
 						total += g_Player[player].points;
+
+						g_Player[player].stats.wins++;
+						IncrementStat(player, "wins");
+					}
+
+					for (int i = 1; i <= MaxClients; i++) {
+						if (IsClientAuthorized(i) && FindValueInADTArray(players, MaxClients, i) == -1) {
+							g_Player[i].stats.losses++;
+							IncrementStat(i, "losses");
+						}
 					}
 
 					CPrintToChatAll("%s%t", PLUGIN_TAG, "winner for team", group, total);
@@ -340,6 +360,8 @@ void OpenCreateTrackMenu(int client) {
 	menu.AddItem("difficulty", "Difficulty: Easy");
 	menu.AddItem("add", "Add Node");
 	menu.AddItem("total", "--- (Total Nodes: 0)");
+	//menu.AddItem("prop", "Add a Prop");
+	//menu.AddItem("bot", "Add a Bot");
 	menu.AddItem("save", "Save Track");
 
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -753,6 +775,8 @@ void OpenTrackEditorMenu(int client, int id) {
 	menu.AddItem("name", "Name: N/A");
 	menu.AddItem("difficulty", "Difficulty: Easy");
 	menu.AddItem("nodes", "Manage Nodes");
+	//menu.AddItem("prop", "Spawn a Prop");
+	//menu.AddItem("bot", "Spawn a Bot");
 
 	PushMenuInt(menu, "id", id);
 

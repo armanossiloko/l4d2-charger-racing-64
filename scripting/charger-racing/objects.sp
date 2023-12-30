@@ -69,11 +69,20 @@ enum struct Object {
 		this.Spawn();
 	}
 
+	void GetOrigin(float origin[3]) {
+		origin[0] = this.origin[0];
+		origin[1] = this.origin[1];
+		origin[2] = this.origin[2];
+	}
+
 	void SetOrigin(float origin[3]) {
 		this.origin[0] = origin[0];
 		this.origin[1] = origin[1];
 		this.origin[2] = origin[2];
-		this.Spawn();
+		
+		if (this.entity > -1 && IsValidEntity(this.entity)) {
+			DispatchKeyValueVector(this.entity, "origin", this.origin);
+		}
 	}
 
 	void GetAngles(float angles[3]) {
@@ -86,22 +95,34 @@ enum struct Object {
 		this.angles[0] = angles[0];
 		this.angles[1] = angles[1];
 		this.angles[2] = angles[2];
-		this.Spawn();
+
+		if (this.entity > -1 && IsValidEntity(this.entity)) {
+			DispatchKeyValueVector(this.entity, "angles", this.angles);
+		}
 	}
 
 	void SetModel(const char[] model) {
 		strcopy(this.model, sizeof(Object::model), model);
-		this.Spawn();
+
+		if (this.entity > -1 && IsValidEntity(this.entity)) {
+			//DispatchKeyValue(this.entity, "model", this.model);
+			SetEntityModel(this.entity, this.model);
+		}
 	}
 
 	void SetSkin(int skin) {
 		this.skin = skin;
-		this.Spawn();
+
+		if (this.entity > -1 && IsValidEntity(this.entity)) {
+			if (StrEqual(this.class, "info_l4d1_survivor_spawn")) {
+				SetCharacter(this.entity, this.skin);
+			} else {
+				DispatchKeyValueInt(this.entity, "skin", this.skin);
+			}
+		}
 	}
 	
 	void Spawn() {
-		this.Delete();
-
 		if (StrEqual(this.class, "info_l4d1_survivor_spawn")) {
 			this.entity = SpawnSurvivor(this.origin, this.angles, this.skin);
 			return;
@@ -220,56 +241,70 @@ int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character 
 		return -1;
 	}
 
-	//SetEntProp(bot, Prop_Send, "m_survivorCharacter", character);
-
-	switch (character)
-	{
-		case 0:		// Nick
-		{
-			SetEntityModel(bot, MODEL_NICK);
-		}
-		case 1:		// Rochelle
-		{
-			SetEntityModel(bot, MODEL_ROCHELLE);
-		}
-		case 2:		// Coach
-		{
-			SetEntityModel(bot, MODEL_COACH);
-		}
-		case 3:		// Ellis
-		{
-			SetEntityModel(bot, MODEL_ELLIS);
-		}
-		case 4:		// Bill
-		{
-			SetEntityModel(bot, MODEL_BILL);
-		}
-		case 5:		// Francis
-		{
-			SetEntityModel(bot, MODEL_FRANCIS);
-		}
-		case 6:		// Zoey
-		{
-			SetEntityModel(bot, MODEL_ZOEY);
-		}
-		case 7:		// Louis
-		{
-			SetEntityModel(bot, MODEL_LOUIS);
-		}
-	}
+	SetCharacter(bot, character);
 
 	return bot;
 }
 
+void SetCharacter(int entity, int character) {
+	switch (character)
+	{
+		case 0: {
+			SetClientName(entity, "Nick");
+			SetEntityModel(entity, MODEL_NICK);
+		}
+		case 1: {
+			SetClientName(entity, "Rochelle");
+			SetEntityModel(entity, MODEL_ROCHELLE);
+		}
+		case 2: {
+			SetClientName(entity, "Coach");
+			SetEntityModel(entity, MODEL_COACH);
+		}
+		case 3: {
+			SetClientName(entity, "Ellis");
+			SetEntityModel(entity, MODEL_ELLIS);
+		}
+		case 4: {
+			SetClientName(entity, "Bill");
+			SetEntityModel(entity, MODEL_BILL);
+		}
+		case 5: {
+			SetClientName(entity, "Francis");
+			SetEntityModel(entity, MODEL_FRANCIS);
+		}
+		case 6: {
+			SetClientName(entity, "Zoey");
+			SetEntityModel(entity, MODEL_ZOEY);
+		}
+		case 7: {
+			SetClientName(entity, "Louis");
+			SetEntityModel(entity, MODEL_LOUIS);
+		}
+	}
+
+	int weapon = -1;
+	if ((weapon = GetEntPropEnt(entity, Prop_Send, "m_hActiveWeapon")) != -1) {
+		RemovePlayerItem(entity, weapon);
+		vCheatCommand(entity, "give", "weapon_pistol");
+	}
+}
+
+void vCheatCommand(int client, char[] command, char[] arguments = "")
+{
+	int iCmdFlags = GetCommandFlags(command);
+	SetCommandFlags(command, iCmdFlags & ~FCVAR_CHEAT);
+	FakeClientCommand(client, "%s %s", command, arguments);
+	SetCommandFlags(command, iCmdFlags | FCVAR_CHEAT);
+}
+
 int FindLatestBot() {
 	for (int i = MaxClients; i > 0; --i) {
-		if (!IsClientInGame(i)) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !IsFakeClient(i)) {
 			continue;
 		}
 
-		if (IsPlayerAlive(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor) {
-			return i;
-		}
+		return i;
 	}
 
 	return -1;
@@ -417,12 +452,40 @@ void OpenSpawnPropModelMenu(int client) {
 	
 	menu.AddItem(DEFAULT_OBJECT, "Traffic Cone");
 
+	char display[64];
 	for (int i = 0; i < g_TotalModels; i++) {
-		menu.AddItem(g_Model[i].path, g_Model[i].name);
+		FormatEx(display, sizeof(display), "[Preset] %s", g_Model[i].name);
+		menu.AddItem(g_Model[i].path, display);
+	}
+
+	int stringTable = FindStringTable("modelprecache");
+	int numStrings = GetStringTableNumStrings(stringTable);
+
+	char strModel[PLATFORM_MAX_PATH];
+	for (int i = 0; i < numStrings; i++) {
+		ReadStringTable(stringTable, i, strModel, sizeof(strModel));
+
+		if (StrContains(strModel, "models/props", false) != 0 || StrContains(strModel, ".mdl", false) == -1) {
+			continue;
+		}
+
+		GetModelName(strModel, display, sizeof(display));
+
+		if (strlen(display) == 0) {
+			continue;
+		}
+
+		menu.AddItem(strModel, display);
 	}
 
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+void GetModelName(const char[] model, char[] display, int size) {
+	char part[16][64];
+	int found = ExplodeString(model, "/", part, 16, 64);
+	strcopy(display, size, part[found-1]);
 }
 
 public int MenuHandler_SpawnPropModel(Menu menu, MenuAction action, int param1, int param2) {
@@ -458,8 +521,8 @@ void OpenSpawnPropSkinMenu(int client) {
 		menu.AddItem("2", "Character: Coach");
 		menu.AddItem("3", "Character: Ellis");
 		menu.AddItem("4", "Character: Bill");
-		menu.AddItem("5", "Character: Zoey");
-		menu.AddItem("6", "Character: Francis");
+		menu.AddItem("5", "Character: Francis");
+		menu.AddItem("6", "Character: Zoey");
 		menu.AddItem("7", "Character: Louis");
 	} else {
 		menu.AddItem("0", "Skin: 0");

@@ -5,7 +5,7 @@ enum struct Vote {
 
 bool CallTrackVote(int track = NO_TRACK) {
 	if (IsVoteInProgress()) {
-		return false;
+		//return false;
 	}
 
 	g_Vote.track = track;

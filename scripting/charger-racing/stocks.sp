@@ -386,7 +386,7 @@ int FindAvailablePlayer() {
 	int total;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || HasGroup(i)) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || HasGroup(i)) {
 			continue;
 		}
 
@@ -402,7 +402,7 @@ int FindAvailablePlayer() {
 
 bool IsPlayersAvailable() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+		if (IsClientInGame(i) && !IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
 			return true;
 		}
 	}
@@ -414,7 +414,7 @@ int GetTotalPlayers() {
 	int amount;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
 			continue;
 		}
 
@@ -430,7 +430,7 @@ public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2)
 
 bool AllPlayersFinished() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (g_Player[i].playing && !g_Player[i].finished) {
+		if (g_Player[i].playing && !g_Player[i].finished && !IsFakeClient(i)) {
 			return false;
 		}
 	}
@@ -439,7 +439,7 @@ bool AllPlayersFinished() {
 
 stock bool IsPlayersPlaying() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsPlayerAlive(i) && g_Player[i].playing) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && !IsFakeClient(i) && g_Player[i].playing) {
 			return true;
 		}
 	}
@@ -450,7 +450,7 @@ int GetWinnerForSingles() {
 	int winner;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !g_Player[i].playing) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || !g_Player[i].playing) {
 			continue;
 		}
 
@@ -677,4 +677,46 @@ void DeleteElevators() {
 	while ((entity = FindEntityByClassname(entity, "func_elevator")) != -1) {
 		RemoveEntity(entity);
 	}
+}
+
+bool IsStringNumeric(const char[] str) {
+	int x = 0;
+	int dotsFound = 0;
+	int numbersFound = 0;
+
+	if (str[x] == '+' || str[x] == '-') {
+		x++;
+	}
+
+	while (str[x] != '\0') {
+		if (IsCharNumeric(str[x])) {
+			numbersFound++;
+		} else if (str[x] == '.') {
+			dotsFound++;
+
+			if (dotsFound > 1) {
+				return false;
+			}
+		} else {
+			return false;
+		}
+
+		x++;
+	}
+
+	return numbersFound > 0;
+}
+
+int FindValueInADTArray(any[] array, int size, any value, int start = 0) {
+	if (start < 0) {
+		start = 0;
+	}
+
+	for (int i = start; i < size; i++) {
+		if (array[i] == value) {
+			return i;
+		}
+	}
+
+	return -1;
 }

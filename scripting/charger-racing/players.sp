@@ -1,3 +1,24 @@
+enum struct Statistics {
+	int races;
+	int wins;
+	int losses;
+	int totalpoints;
+
+	void Init() {
+		this.races = 0;
+		this.wins = 0;
+		this.losses = 0;
+		this.totalpoints = 0;
+	}
+
+	void Clear() {
+		this.races = 0;
+		this.wins = 0;
+		this.losses = 0;
+		this.totalpoints = 0;
+	}
+}
+
 enum struct Player {
 	int client;			//The client index of the player.
 	int points;			//How many points the player has accumulated throughout the race total.
@@ -11,6 +32,7 @@ enum struct Player {
 	bool finished;		//Has this player finished the race?
 	float time;			//How many precise seconds has it been since the race started?
 	int spawnent;		//The entity index of the prop or bot being created.
+	Statistics stats;	//Cached statistics for the player stored via cache.
 
 	void Init(int client) {
 		this.client = client;
@@ -25,6 +47,7 @@ enum struct Player {
 		this.finished = false;
 		this.time = 0.0;
 		this.spawnent = -1;
+		this.stats.Init();
 	}
 
 	void SetPoints(int points) {
@@ -35,6 +58,9 @@ enum struct Player {
 	void AddPoints(int point) {
 		this.points += point;
 		this.SyncHud();
+
+		g_Player[this.client].stats.totalpoints += point;
+		IncrementStat(this.client, "totalpoints");
 	}
 
 	void RemovePoints(int point) {
@@ -156,5 +182,6 @@ enum struct Player {
 		this.finished = false;
 		this.time = 0.0;
 		this.spawnent = -1;
+		this.stats.Clear();
 	}
 }

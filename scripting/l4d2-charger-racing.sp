@@ -17,6 +17,8 @@
 #define PLUGIN_TAG "{green}[Racing] {default}"
 #define PLUGIN_TAG_NOCOLOR "[Racing] "
 
+#define TABLE_STATS "l4d2cr_stats"
+
 #define DEBUG
 
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
@@ -71,7 +73,11 @@ char g_ConfigsFolder[PLATFORM_MAX_PATH];
 char g_DataFolder[PLATFORM_MAX_PATH];
 char g_TracksPath[PLATFORM_MAX_PATH];
 bool g_LateLoad;
+bool g_LateLoad2;
 char g_CurrentMap[64];
+bool g_MapStarted;
+
+Database g_Database;
 
 API g_API;
 GameState g_State;
@@ -124,6 +130,7 @@ ArrayList g_BeamEnts;
 #include "charger-racing/objects.sp"
 #include "charger-racing/players.sp"
 #include "charger-racing/points.sp"
+#include "charger-racing/statistics.sp"
 #include "charger-racing/stocks.sp"
 #include "charger-racing/tracks.sp"
 #include "charger-racing/view-controller.sp"
@@ -141,6 +148,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	RegPluginLibrary("charger-racing");
 	g_API.Init();
 	g_LateLoad = late;
+	g_LateLoad2 = late;
 	return APLRes_Success;
 }
 
@@ -148,6 +156,8 @@ public void OnPluginStart() {
 	//Translations
 	LoadTranslations("common.phrases");
 	LoadTranslations("l4d2-charger-racing.phrases");
+
+	Database.Connect(OnSQLConnect, "l4d2-charger-racing");
 
 	//ConVars
 	CreateConVar("sm_l4d2_charger_racing_version", PLUGIN_VERSION, "Version control for this plugin.", FCVAR_DONTRECORD);
@@ -204,6 +214,7 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_hud", Command_Hud, "Toggles the gamemodes HUD on or off.");
 	RegConsoleCmd2("sm_commands", Command_Commands, "Shows the available commands for the gamemode.");
 	RegConsoleCmd2("sm_track", Command_Track, "Prints out to chat which track is currently set.");
+	RegConsoleCmd2("sm_stats", Command_Stats, "Shows your current statistics.");
 
 	//Track Commands
 	RegAdminCmd2("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
@@ -252,6 +263,41 @@ public void OnPluginStart() {
 	CPrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
 }
 
+public void OnSQLConnect(Database db, const char[] error, any data) {
+	if (db == null) {
+		ThrowError("Error while connecting to database: %s", error);
+	}
+	
+	g_Database = db;
+	LogMessage("Connected to database successfully.");
+
+	char driver[32];
+	g_Database.Driver.GetIdentifier(driver, sizeof(driver));
+	
+	if (StrEqual(driver, "sqlite", false)) {
+		g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS " ... TABLE_STATS ... " ( id INTEGER PRIMARY KEY AUTOINCREMENT, accountid INTEGER NOT NULL, races INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0, totalpoints INTEGER NOT NULL DEFAULT 0);", DBPrio_Low);
+	} else {
+		g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS " ... TABLE_STATS ... " ( id INTEGER PRIMARY KEY AUTO_INCREMENT, accountid INTEGER NOT NULL, races INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0, totalpoints INTEGER NOT NULL DEFAULT 0);", DBPrio_Low);
+	}
+}
+
+public void OnCreateTable(Database db, DBResultSet results, const char[] error, any data) {
+	if (results == null) {
+		ThrowError("Error while creating table: %s", error);
+	}
+
+	if (g_LateLoad2) {
+		g_LateLoad2 = false;
+
+		char auth[64];
+		for (int i = 1; i <= MaxClients; i++) {
+			if (IsClientAuthorized(i) && GetClientAuthId(i, AuthId_Engine, auth, sizeof(auth))) {
+				OnClientAuthorized(i, auth);
+			}
+		}
+	}
+}
+
 public void OnPluginEnd() {
 	for (int i = 0; i < g_TotalObjects; i++) {
 		g_Objects[i].Delete();
@@ -260,6 +306,10 @@ public void OnPluginEnd() {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
+		}
+
+		if (g_SpawningObjects[i].entity > 0 && IsValidEntity(g_SpawningObjects[i].entity)) {
+			RemoveEntity(g_SpawningObjects[i].entity);
 		}
 	}
 
@@ -274,7 +324,7 @@ public void OnConfigsExecuted() {
 	FindConVar("mp_gamemode").SetString("versus");
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("sb_dont_shoot").BoolValue = true;
-	FindConVar("director_no_survivor_bots").BoolValue = true;
+	FindConVar("director_no_survivor_bots").BoolValue = false;
 	FindConVar("vs_max_team_switches").IntValue = 999;
 	FindConVar("z_common_limit").IntValue = 0;
 
@@ -347,6 +397,8 @@ public void OnMapStart() {
 	PrecacheModel(MODEL_ROCHELLE);
 	PrecacheModel(MODEL_COACH);
 	PrecacheModel(MODEL_ELLIS);
+
+	g_MapStarted = true;
 }
 
 public void OnMapEnd() {
@@ -594,7 +646,7 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	}
 
 	int client;
-	if ((client = GetClientOfUserId(userid)) < 1 || !IsClientInGame(client)) {
+	if ((client = GetClientOfUserId(userid)) < 1 || !IsClientInGame(client) || IsFakeClient(client)) {
 		return Plugin_Stop;
 	}
 
@@ -730,6 +782,10 @@ public Action Timer_Tick(Handle timer) {
 }
 
 public void OnClientConnected(int client) {
+	if (IsFakeClient(client)) {
+		return;
+	}
+
 	g_Player[client].Init(client);
 }
 
@@ -741,6 +797,48 @@ public void OnClientPutInServer(int client) {
 public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype) {
 	damage = 0.0;
 	return Plugin_Changed;
+}
+
+public void OnClientAuthorized(int client, const char[] auth) {
+	if (IsFakeClient(client)) {
+		return;
+	}
+
+	if (g_Database == null) {
+		return;
+	}
+
+	char query[2048];
+	g_Database.Format(query, sizeof(query), "SELECT races, wins, losses, totalpoints FROM %s WHERE accountid = %i;", TABLE_STATS, GetSteamAccountID(client));
+	g_Database.Query(OnParseStats, query, GetClientUserId(client), DBPrio_Low);
+}
+
+public void OnParseStats(Database db, DBResultSet results, const char[] error, any data) {
+	int client;
+	if ((client = GetClientOfUserId(data)) == 0) {
+		return;
+	}
+
+	if (results == null) {
+		ThrowError("Error while parsing statistics: %s", error);
+	}
+
+	if (results.FetchRow()) {
+		g_Player[client].stats.races = results.FetchInt(0);
+		g_Player[client].stats.wins = results.FetchInt(1);
+		g_Player[client].stats.losses = results.FetchInt(2);
+		g_Player[client].stats.totalpoints = results.FetchInt(3);
+	} else {
+		char query[2048];
+		g_Database.Format(query, sizeof(query), "INSERT INTO %s (accountid) VALUES (%i);", TABLE_STATS, GetSteamAccountID(client));
+		g_Database.Query(OnSyncPlayer, query, _, DBPrio_Low);
+	}
+}
+
+public void OnSyncPlayer(Database db, DBResultSet results, const char[] error, any data) {
+	if (results == null) {
+		ThrowError("Error while syncing player: %s", error);
+	}
 }
 
 public void OnClientDisconnect(int client) {

@@ -208,6 +208,11 @@
 		"en"	"Track has not been deleted."
 	}
 
+	"track not found"
+	{
+		"en"	"Track not found, please try again."
+	}
+
 	"enter new track name"
 	{
 		"en"	"Enter a new name for this track:"

@@ -29,8 +29,8 @@ enum struct GameState {
 		StopTimer(this.ticker);
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
-		SpawnObjects();
 		KickBots();
+		SpawnObjects();
 		CreateTrackEnts();
 	}
 
@@ -45,8 +45,8 @@ enum struct GameState {
 			this.PopQueue(false);
 		}
 
-		SpawnObjects();
 		KickBots();
+		SpawnObjects();
 		CreateTrackEnts();
 
 		//Run code a frame after ready starts, mostly used to stop compile errors.
@@ -64,6 +64,9 @@ enum struct GameState {
 
 			SetEntityMoveType(i, MOVETYPE_WALK);
 			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+
+			g_Player[i].stats.races++;
+			IncrementStat(i, "races");
 		}
 	}
 

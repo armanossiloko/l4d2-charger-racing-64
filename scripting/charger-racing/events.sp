@@ -8,8 +8,7 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 
 	//If we have any available tracks on the map, just pick the 1st one.
 	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
-		g_State.track = 0;
-		g_API.Call_OnTrackSet(g_State.track);
+		SetTrack(0, false);
 	}
 }
 
@@ -25,6 +24,18 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 		return;
 	}
 
+	if (!IsFakeClient(client)) {
+		if (g_MapStarted) {
+			g_MapStarted = false;
+
+			for (int i = 1; i <= MaxClients; i++) {
+				if (IsClientInGame(i) && IsFakeClient(i) && GetEntityObjectIndex(i) == -1) {
+					KickClient(i);
+				}
+			}
+		}
+	}
+
 	g_Player[client].charging = false;
 	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
 
@@ -35,8 +46,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 
 	//If we have any available tracks on the map, just pick the 1st one.
 	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
-		g_State.track = 0;
-		g_API.Call_OnTrackSet(g_State.track);
+		SetTrack(0, false);
 	}
 }
 
