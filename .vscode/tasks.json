@@ -22,8 +22,8 @@
                 "-v2",
                 "-i${workspaceFolder}\\scripting",
                 "-i${workspaceFolder}\\include",
-                // "-o${workspaceFolder}\\plugins\\${fileBasenameNoExtension}.smx"
-                "-oD:\\servers\\l4d2\\serverfiles\\left4dead2\\addons\\sourcemod\\plugins\\${fileBasenameNoExtension}.smx"
+                "-o${workspaceFolder}\\plugins\\${fileBasenameNoExtension}.smx"
+                // "-oD:\\servers\\l4d2\\serverfiles\\left4dead2\\addons\\sourcemod\\plugins\\${fileBasenameNoExtension}.smx"
             ],
 
             "group": {

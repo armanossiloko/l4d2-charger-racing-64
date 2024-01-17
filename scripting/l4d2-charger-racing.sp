@@ -327,6 +327,7 @@ public void OnConfigsExecuted() {
 	FindConVar("director_no_survivor_bots").BoolValue = false;
 	FindConVar("vs_max_team_switches").IntValue = 999;
 	FindConVar("z_common_limit").IntValue = 0;
+	FindConVar("sb_stop").BoolValue = true;
 
 	char sParticle[64];
 	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
@@ -829,6 +830,10 @@ public void OnParseStats(Database db, DBResultSet results, const char[] error, a
 		g_Player[client].stats.losses = results.FetchInt(2);
 		g_Player[client].stats.totalpoints = results.FetchInt(3);
 	} else {
+		if (g_Database == null) {
+			return;
+		}
+		
 		char query[2048];
 		g_Database.Format(query, sizeof(query), "INSERT INTO %s (accountid) VALUES (%i);", TABLE_STATS, GetSteamAccountID(client));
 		g_Database.Query(OnSyncPlayer, query, _, DBPrio_Low);

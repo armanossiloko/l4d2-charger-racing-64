@@ -213,6 +213,8 @@ enum struct GameState {
 				TeleportToSurvivorPos(i);
 			}
 
+			g_Player[i].currentnode = 0;
+
 			SetEntityMoveType(i, MOVETYPE_NONE);
 			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
 		}

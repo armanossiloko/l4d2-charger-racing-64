@@ -69,6 +69,11 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	}
 
 	if (g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
+		
+		//If the player is racing but dies, move onto the next player then end the race.
+		g_Player[client].finished = true;
+		CPrintToChatAll("%s%t", PLUGIN_TAG, "finished the race", client);
+
 		if (AllPlayersFinished()) {
 			EndRace();
 		} else {

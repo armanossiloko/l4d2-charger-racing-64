@@ -303,6 +303,11 @@ void IsNearFinish(int client) {
 					int[] players = new int[MaxClients];
 					g_Groups.GetGroupMembers(group, players);
 
+					PrintToServer("Group: %i", group);
+					for (int i = 0; i <= MaxClients; i++) {
+						PrintToServer(" - Player: %i", players[i]);
+					}
+
 					points = g_Points.Get(g_State.mode, "winner");
 
 					int total; int temp; int player;

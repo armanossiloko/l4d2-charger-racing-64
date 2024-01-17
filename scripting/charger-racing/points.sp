@@ -47,10 +47,10 @@ void ParsePoints(const char[] file) {
 					kv.GetSectionName(key, sizeof(key));
 					value = kv.GetNum(NULL_STRING);
 					g_Points.Set(index, key, value);
+					PrintToServer("Parsed point value for mode %s: %s = %i", mode, key, value);
 					total++;
 				} while (kv.GotoNextKey(false));
 
-				kv.GoBack();
 				kv.GoBack();
 			}
 

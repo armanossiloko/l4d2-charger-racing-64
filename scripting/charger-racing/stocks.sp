@@ -468,7 +468,7 @@ int GetWinnerForSingles() {
 }
 
 int GetWinnerGroup() {
-	int winner;
+	int winner = -1;
 	int winnerpoints;
 	int points;
 

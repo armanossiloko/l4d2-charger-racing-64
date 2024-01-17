@@ -26,7 +26,7 @@ bool IncrementStat(int client, const char[] field, int amount = 1) {
 		return false;
 	}
 
-	if (amount < 1) {
+	if (g_Database == null || amount < 1) {
 		return false;
 	}
 
