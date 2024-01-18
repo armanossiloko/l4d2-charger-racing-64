@@ -7,6 +7,7 @@
 enum Status {
 	STATUS_NONE,		//No racing going on at all currently, mode is basically disabled.
 	STATUS_PREPARING,	//Racing is about to start and players should be prepared.
+	STATUS_START,		//The start of the race before everything else happens.
 	STATUS_READY,		//The ready sequence where it counts down from 3 to GO!
 	STATUS_RACING,		//The active race itself where players are participating.
 	STATUS_FINISHED		//The finish line has been hit and now we're waiting for the end race call.

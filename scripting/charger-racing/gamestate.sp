@@ -32,25 +32,64 @@ enum struct GameState {
 		KickBots();
 		SpawnObjects();
 		CreateTrackEnts();
+
+		for (int i = 1; i <= MaxClients; i++) {
+			if (IsClientInGame(i)) {
+				if (g_Player[i].playing) {
+					L4D_ChangeClientTeam(i, L4DTeam_Infected);
+					L4D_RespawnPlayer(i);
+				}
+			}
+
+			g_Player[i].playing = false;
+			g_Player[i].finished = false;
+			g_Player[i].time = 0.0;
+			g_Player[i].points = 0;
+			g_Player[i].currentnode = 0;
+			g_Player[i].cache_points = 0;
+			g_Player[i].cache_time = 0.0;
+			g_Player[i].ready = false;
+		}
 	}
 
-	void Ready(bool popqueue) {
+	void StartRace() {
+		g_State.SetupGroups();
+
+		for (int i = 1; i <= MaxClients; i++) {
+			if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+				continue;
+			}
+
+			if (!g_Player[i].ready) {
+				if (L4D_GetClientTeam(i) != L4DTeam_Spectator) {
+					L4D_ChangeClientTeam(i, L4DTeam_Spectator);
+				}
+
+				PrintToClient(i, "%T", "not ready moved to spec", i);
+				continue;
+			}
+
+			g_Player[i].ready = false;
+			g_Player[i].playing = true;
+			g_Player[i].finished = false;
+			g_Player[i].time = GetGameTime();
+			g_API.Call_OnPlayerStart(i);
+		}
+
+		g_State.PopQueue(true);
+		g_API.Call_OnStartRace();
+	}
+
+	void Ready() {
 		this.status = STATUS_READY;
 		g_API.Call_OnStatusChange(this.status);
 
 		this.countdown = convar_Racing_Countdown.IntValue;
 		this.timer = convar_Racing_Timer.FloatValue;
 
-		if (popqueue) {
-			this.PopQueue(false);
-		}
-
 		KickBots();
 		SpawnObjects();
 		CreateTrackEnts();
-
-		//Run code a frame after ready starts, mostly used to stop compile errors.
-		RequestFrame(Frame_DelayReady);
 	}
 
 	void Racing() {
@@ -75,6 +114,8 @@ enum struct GameState {
 		g_API.Call_OnStatusChange(this.status);
 		this.rounds++;
 
+		PrintHintTextToAll("%t", "match is ending");
+
 		//Run code a frame after the race finishes, mostly used to stop compile errors.
 		RequestFrame(Frame_DelayFinish);
 
@@ -84,12 +125,12 @@ enum struct GameState {
 
 		if (convar_Rounds.IntValue > 0 && this.rounds >= convar_Rounds.IntValue) {
 			//InitiateMapChooserVote(MapChange_Instant);
-			//CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match map change");
+			//PrintToClients("%t", "prepare post match map change");
 			CreateTimer(preparation, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match", RoundFloat(preparation));
+			PrintToClients("%t", "prepare post match", RoundFloat(preparation));
 		} else {
 			CreateTimer(preparation, Timer_Prepare, _, TIMER_FLAG_NO_MAPCHANGE);
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "prepare post match", RoundFloat(preparation));
+			PrintToClients("%t", "prepare post match", RoundFloat(preparation));
 		}
 	}
 
@@ -115,7 +156,7 @@ enum struct GameState {
 					}
 
 					g_Groups.AddPlayer(i);
-					CPrintToChat(i, "%s%T", PLUGIN_TAG, "added to slot queue", i, i);
+					PrintToClient(i, "%T", "added to slot queue", i, i);
 				}
 			}
 			case MODE_TEAMS, MODE_GROUPTEAMS: {
@@ -124,21 +165,22 @@ enum struct GameState {
 				int players = RoundToCeil(totalplayers * ratio);
 				int teams = totalplayers / players;
 
-				int clients[MAXPLAYERS];
+				int[] clients = new int[MaxClients];
 				int total;
 
 				for (int i = 0; i < teams; i++) {
 					total = 0;
 
 					for (int x = 0; x < players; x++) {
-						if ((clients[total] = FindAvailablePlayer()) == -1) {
+						if ((clients[total] = FindAvailablePlayer()) < 1) {
 							break;
 						}
-						CPrintToChat(clients[total], "%s%T", PLUGIN_TAG, "added to group queue", clients[total], i);
+
+						PrintToClient(clients[total], "%T", "added to group queue", clients[total], i);
 						total++
 					}
 
-					g_Groups.AddGroup(clients, total);
+					g_Groups.AddGroup(clients, MaxClients);
 				}
 			}
 		}
@@ -150,7 +192,9 @@ enum struct GameState {
 				continue;
 			}
 
-			L4D_ChangeClientTeam(i, L4DTeam_Spectator);
+			if (L4D_GetClientTeam(i) != L4DTeam_Spectator) {
+				L4D_ChangeClientTeam(i, L4DTeam_Spectator);
+			}
 		}
 
 		int[] players = new int[MaxClients];
@@ -167,10 +211,15 @@ enum struct GameState {
 						continue;
 					}
 
-					CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up", client);
+					if (!IsClientInGame(client) || IsFakeClient(client)) {
+						continue;
+					}
+
+					PrintToClient(client, "%T", "you're up", client);
 
 					L4D_ChangeClientTeam(client, L4DTeam_Infected);
 					L4D_RespawnPlayer(client);
+					L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 				}
 			}
 			case MODE_GROUPS, MODE_GROUPTEAMS: {
@@ -183,10 +232,15 @@ enum struct GameState {
 							continue;
 						}
 
-						CPrintToChat(client, "%s%T", PLUGIN_TAG, "you're up for team", client);
+						if (!IsClientInGame(client) || IsFakeClient(client)) {
+							continue;
+						}
+
+						PrintToClient(client, "%T", "you're up for team", client);
 
 						L4D_ChangeClientTeam(client, L4DTeam_Infected);
 						L4D_RespawnPlayer(client);
+						L4D_SetClass(i, view_as<int>(L4D2ZombieClass_Charger));
 					}
 				}
 			}
@@ -217,10 +271,11 @@ enum struct GameState {
 
 			SetEntityMoveType(i, MOVETYPE_NONE);
 			SetEntProp(i, Prop_Send, "m_CollisionGroup", 0);
+			L4D_SetClass(i, view_as<int>(L4D2ZombieClass_Charger));
 		}
 
 		if (ready) {
-			this.Ready(false);
+			this.Ready();
 		}
 	}
 }
@@ -254,8 +309,30 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 				mode = MODE_GROUPTEAMS;
 			}
 
-			SetMode(mode);
+			char sName[64];
+			GetModeName(mode, sName, sizeof(sName));
 
+			Response_SetMode response = SetMode(mode);
+
+			if (response == Success) {
+				PrintToClient(param1, "%T", "mode set successfully", param1, sName);
+			} else {
+				char reason[64];
+				switch (response) {
+					case InvalidMode: {
+						strcopy(reason, sizeof(reason), "Mode specified is invalid.");
+					}
+					case AlreadySet: {
+						strcopy(reason, sizeof(reason), "Mode is already set.");
+					}
+					case AlreadyActive: {
+						strcopy(reason, sizeof(reason), "Gamemode is already active.");
+					}
+				}
+				
+				PrintToClient(param1, "%T", "mode set unsuccessfully", param1, sInfo, reason);
+			}
+			
 			OpenModesMenu(param1);
 		}
 		
@@ -267,20 +344,35 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 	return 0;
 }
 
-bool SetMode(Modes mode) {
+enum Response_SetMode {
+	Success,
+	InvalidMode,
+	AlreadySet,
+	AlreadyActive
+}
+
+Response_SetMode SetMode(Modes mode) {
 	if (mode < MODE_SINGLES || mode > MODE_GROUPTEAMS) {
-		return false;
+		return InvalidMode;
+	}
+
+	if (g_State.mode == mode) {
+		return AlreadySet;
+	}
+
+	if (g_State.status != STATUS_PREPARING) {
+		return AlreadyActive;
 	}
 
 	char sName[64];
 	GetModeName(mode, sName, sizeof(sName));
 
-	CPrintToChatAll("%s%t", PLUGIN_TAG, "mode changing to", sName);
+	PrintToClients("%t", "mode changing to", sName);
 
 	g_State.mode = mode;
 	g_API.Call_OnModeSet(g_State.mode);
 
-	return true;
+	return Success;
 }
 
 void GetModeName(Modes mode, char[] buffer, int size) {
@@ -326,10 +418,17 @@ bool SetStatus(Status status) {
 			}
 			return false;
 		}
-		case STATUS_READY: {
+		case STATUS_START: {
 			if (g_State.status == STATUS_PREPARING) {
-				g_State.SetupGroups();
-				g_State.Ready(true);
+				g_State.StartRace();
+				g_API.Call_OnStatusChange(g_State.status);
+				return true;
+			}
+			return false;
+		}
+		case STATUS_READY: {
+			if (g_State.status == STATUS_START) {
+				g_State.Ready();
 				g_API.Call_OnStatusChange(g_State.status);
 				return true;
 			}
@@ -357,15 +456,15 @@ bool SetStatus(Status status) {
 }
 
 void EndRace() {
-	CPrintToChatAll("%s%t", PLUGIN_TAG, "race finished print");
+	PrintToClients("%t", "race finished print");
 
 	char sTime[64];
 	for (int i = 1; i <= MaxClients; i++) {
 		if (g_Player[i].playing) {
 			FormatSeconds(g_Player[i].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
-			PrintHintTextToAll("%s%T", PLUGIN_TAG_NOCOLOR, "race finished with time center", i, sTime);
+			PrintHintTextToClients("%T", "race finished with time center", i, sTime);
 		} else {
-			PrintHintTextToAll("%s%T", PLUGIN_TAG_NOCOLOR, "race finished center", i);
+			PrintHintTextToClients("%T", "race finished center", i);
 		}
 	}
 

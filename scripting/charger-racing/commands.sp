@@ -26,12 +26,12 @@ public Action Command_Hud(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
 	g_Player[client].hud = !g_Player[client].hud;
-	CPrintToChat(client, "%s%T%T", PLUGIN_TAG, "hud status", client, (g_Player[client].hud ? "hud enabled" : "hud disabled"), client);
+	PrintToClient(client, "%T%T", "hud status", client, (g_Player[client].hud ? "hud enabled" : "hud disabled"), client);
 
 	if (AreClientCookiesCached(client)) {
 		g_Cookies.hud.Set(client, (g_Player[client].hud ? "1" : "0"));
@@ -46,7 +46,7 @@ public Action Command_Commands(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -94,7 +94,7 @@ public Action Command_Track(int client, int args) {
 		strcopy(name, sizeof(name), "none");
 	}
 
-	CReplyToCommand(client, "%sTrack '%i/%i' is currently set to: %s", PLUGIN_TAG, g_State.track, g_TotalTracks, name);
+	ReplyToClient(client, "Track '%i/%i' is currently set to: %s", g_State.track, g_TotalTracks, name);
 
 	return Plugin_Handled;
 }
@@ -105,7 +105,7 @@ public Action Command_Stats(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -120,11 +120,18 @@ public Action Command_VoteTrack(int client, int args) {
 	}
 
 	if (args == 0) {
-		if (CallTrackVote(NO_TRACK)) {
-			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply vote for track started", client);
-		} else {
-			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply vote for track already in progress", client);
+		switch (CallTrackVote(NO_TRACK)) {
+			case VoteState_InProgress: {
+				ReplyToClient(client, "%T", "reply vote for track already in progress", client);
+			}
+			case VoteState_Active: {
+				ReplyToClient(client, "%T", "reply vote for track started", client);
+			}
+			case VoteState_Empty: {
+				ReplyToClient(client, "%T", "reply vote for track empty", client);
+			}
 		}
+
 		return Plugin_Handled;
 	}
 
@@ -134,14 +141,20 @@ public Action Command_VoteTrack(int client, int args) {
 	int track = FindTrack(sTrack);
 
 	if (track == -1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply track not found", client);
+		ReplyToClient(client, "%T", "reply track not found", client);
 		return Plugin_Handled;
 	}
 
-	if (CallTrackVote(track)) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply vote for track started", client);
-	} else {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply vote for track already in progress", client);
+	switch (CallTrackVote(track)) {
+		case VoteState_InProgress: {
+			ReplyToClient(client, "%T", "reply vote for track already in progress", client);
+		}
+		case VoteState_Active: {
+			ReplyToClient(client, "%T", "reply vote for track started", client);
+		}
+		case VoteState_Empty: {
+			ReplyToClient(client, "%T", "reply vote for track empty", client);
+		}
 	}
 
 	return Plugin_Handled;
@@ -153,7 +166,7 @@ public Action Command_ReloadTracks(int client, int args) {
 	}
 
 	ParseTracks(g_TracksPath);
-	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply reloaded tracks", client, g_TracksPath);
+	ReplyToClient(client, "%T", "reply reloaded tracks", client, g_TracksPath);
 
 	return Plugin_Handled;
 }
@@ -164,7 +177,7 @@ public Action Command_SaveTracks(int client, int args) {
 	}
 
 	SaveTracks(g_TracksPath);
-	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply saved all tracks", client, g_TracksPath);
+	ReplyToClient(client, "%T", "reply saved all tracks", client, g_TracksPath);
 
 	return Plugin_Handled;
 }
@@ -175,7 +188,7 @@ public Action Command_CreateTrack(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -191,7 +204,7 @@ public Action Command_DeleteTrack(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -206,7 +219,7 @@ public Action Command_DeleteTrack(int client, int args) {
 		}
 
 		if (track == NO_TRACK) {
-			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "track not found", client);
+			ReplyToClient(client, "%T", "track not found", client);
 			return Plugin_Handled;
 		}
 
@@ -226,7 +239,7 @@ public Action Command_EditTrack(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -241,7 +254,7 @@ public Action Command_EditTrack(int client, int args) {
 		}
 
 		if (track == NO_TRACK) {
-			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "track not found", client);
+			ReplyToClient(client, "%T", "track not found", client);
 			return Plugin_Handled;
 		}
 
@@ -261,7 +274,7 @@ public Action Command_SetTrack(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -270,9 +283,9 @@ public Action Command_SetTrack(int client, int args) {
 		GetCmdArg(1, sTrack, sizeof(sTrack));
 
 		if (SetTrack(StringToInt(sTrack))) {
-			CPrintToChat(client, "%s%T", PLUGIN_TAG, "track set successfully", client);
+			PrintToClient(client, "%T", "track set successfully", client);
 		} else {
-			CPrintToChat(client, "%s%T", PLUGIN_TAG, "track set failed", client);
+			PrintToClient(client, "%T", "track set failed", client);
 		}
 
 		return Plugin_Handled;
@@ -288,10 +301,8 @@ public Action Command_StartRace(int client, int args) {
 		return Plugin_Continue;
 	}
 
-	g_State.SetupGroups();
-	g_State.Ready(true);
-
-	CPrintToChatAll("%s%t", PLUGIN_TAG, "force start race", client);
+	g_State.StartRace();
+	PrintToClients("%t", "force start race", client);
 
 	return Plugin_Handled;
 }
@@ -302,14 +313,14 @@ public Action Command_EndRace(int client, int args) {
 	}
 
 	if (g_State.status != STATUS_RACING) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "no race active", client);
+		ReplyToClient(client, "%T", "no race active", client);
 		return Plugin_Handled;
 	}
 
 	g_State.Finish();
 	g_API.Call_OnEndRace();
 
-	CPrintToChatAll("%s%t", PLUGIN_TAG, "force end race", client);
+	PrintToClients("%t", "force end race", client);
 
 	return Plugin_Handled;
 }
@@ -320,7 +331,7 @@ public Action Command_SetMode(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -328,7 +339,31 @@ public Action Command_SetMode(int client, int args) {
 		char sMode[16];
 		GetCmdArg(1, sMode, sizeof(sMode));
 
-		SetMode(view_as<Modes>(StringToInt(sMode)));
+		Modes mode = view_as<Modes>(StringToInt(sMode));
+
+		char sName[64];
+		GetModeName(mode, sName, sizeof(sName));
+
+		Response_SetMode response = SetMode(mode);
+
+		if (response == Success) {
+			PrintToClient(client, "%T", "mode set successfully", client, sName);
+		} else {
+			char reason[64];
+			switch (response) {
+				case InvalidMode: {
+					strcopy(reason, sizeof(reason), "Mode specified is invalid.");
+				}
+				case AlreadySet: {
+					strcopy(reason, sizeof(reason), "Mode is already set.");
+				}
+				case AlreadyActive: {
+					strcopy(reason, sizeof(reason), "Gamemode is already active.");
+				}
+			}
+
+			PrintToClient(client, "%T", "mode set unsuccessfully", client, sMode, reason);
+		}
 
 		return Plugin_Handled;
 	}
@@ -344,7 +379,7 @@ public Action Command_SpawnSurvivor(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -354,9 +389,9 @@ public Action Command_SpawnSurvivor(int client, int args) {
 	GetClientCrosshairOrigin(client, origin, true, 35.0);
 
 	if (SpawnSurvivor(origin, NULL_VECTOR, survivor) != -1) {
-		CPrintToChat(client, "%s%T", PLUGIN_TAG, "survivor bot created", client);
+		PrintToClient(client, "%T", "survivor bot created", client);
 	} else {
-		CPrintToChat(client, "%s%T", PLUGIN_TAG, "survivor bot failed", client);
+		PrintToClient(client, "%T", "survivor bot failed", client);
 	}
 
 	return Plugin_Handled;
@@ -368,7 +403,7 @@ public Action Command_SpawnProp(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -398,7 +433,7 @@ public Action Command_SpawnBot(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -428,7 +463,7 @@ public Action Command_Delete(int client, int args) {
 	}
 
 	if (client < 1) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "Command is in-game only", client);
+		ReplyToClient(client, "%T", "Command is in-game only", client);
 		return Plugin_Handled;
 	}
 
@@ -436,20 +471,20 @@ public Action Command_Delete(int client, int args) {
 		int target = GetClientAimTarget(client, false);
 
 		if (!IsValidEntity(target)) {
-			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply not aiming at valid entity", client);
+			ReplyToClient(client, "%T", "reply not aiming at valid entity", client);
 			return Plugin_Handled;
 		}
 
 		int obj = GetEntityObjectIndex(target);
 
 		if (obj < 0) {
-			CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply not aiming at valid object", client);
+			ReplyToClient(client, "%T", "reply not aiming at valid object", client);
 			return Plugin_Handled;
 		}
 
 		g_Objects[obj].Delete();
 		g_Objects[obj].Remove(g_TracksPath, g_Tracks[g_State.track].name, obj);
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply object deleted", client);
+		ReplyToClient(client, "%T", "reply object deleted", client);
 
 		return Plugin_Handled;
 	}
@@ -457,20 +492,20 @@ public Action Command_Delete(int client, int args) {
 	int target = GetClientAimTarget(client, false);
 
 	if (!IsValidEntity(target)) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply not aiming at valid entity", client);
+		ReplyToClient(client, "%T", "reply not aiming at valid entity", client);
 		return Plugin_Handled;
 	}
 
 	int obj = GetEntityObjectIndex(target);
 
 	if (obj < 0) {
-		CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply not aiming at valid object", client);
+		ReplyToClient(client, "%T", "reply not aiming at valid object", client);
 		return Plugin_Handled;
 	}
 
 	g_Objects[obj].Delete();
 	g_Objects[obj].Remove(g_TracksPath, g_Tracks[g_State.track].name, obj);
-	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "reply object deleted", client);
+	ReplyToClient(client, "%T", "reply object deleted", client);
 
 	return Plugin_Handled;
 }
@@ -481,7 +516,7 @@ public Action Command_Pause(int client, int args) {
 	}
 
 	g_State.paused = !g_State.paused;
-	CReplyToCommand(client, "%s%T%T", PLUGIN_TAG, "pause status", client, g_State.paused ? "pause enabled" : "pause disabled", client);
+	ReplyToClient(client, "%T%T", "pause status", client, g_State.paused ? "pause enabled" : "pause disabled", client);
 
 	return Plugin_Handled;
 }
@@ -494,7 +529,73 @@ public Action Command_State(int client, int args) {
 	char name[64];
 	GetStateDisplayName(g_State.status, name, sizeof(name));
 
-	CReplyToCommand(client, "%s%T", PLUGIN_TAG, "state status", client, name);
+	ReplyToClient(client, "%T", "state status", client, name);
+
+	return Plugin_Handled;
+}
+
+public Action Command_Respawn(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	char search[MAX_TARGET_LENGTH];
+	GetCmdArgString(search, sizeof(search));
+
+	int target = FindTargetEx(client, search, false, false);
+
+	if (target == -1) {
+		target = client;
+	}
+
+	L4D_ChangeClientTeam(target, L4DTeam_Infected);
+	L4D_RespawnPlayer(client);
+
+	return Plugin_Handled;
+}
+
+public Action Command_Groups(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	//g_State.SetupGroups();
+
+	int groups = g_Groups.GetTotalGroups();
+
+	PrintToServer("===========================================");
+	PrintToServer("Total groups: %i", groups);
+	for (int i = 0; i < groups; i++) {
+		PrintToServer(" - Group %i:", i);
+		int[] players = new int[MaxClients];
+		g_Groups.GetGroupMembers(i, players);
+		
+		for (int x = 0; x < MaxClients; x++) {
+			PrintToServer("  - Player %i: %i", x, players[x]);
+		}
+	}
+	PrintToServer("===========================================");
+
+	return Plugin_Handled;
+}
+
+public Action Command_Ready(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		ReplyToClient(client, "%T", "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
+	}
+
+	g_Player[client].ready = !g_Player[client].ready;
+	PrintToClient(client, "%T", "ready toggle", client, (g_Player[client].ready ? "Enabled" : "Disabled"));
 
 	return Plugin_Handled;
 }

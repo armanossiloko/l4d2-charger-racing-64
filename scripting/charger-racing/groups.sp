@@ -34,12 +34,16 @@ enum struct Group {
 		}
 
 		int[] players = new int[MaxClients];
-		int player = this.groups.GetArray(group, players);
+		this.groups.GetArray(group, players);
 
-		player++;
-		players[player] = client;
+		for (int i = 0; i < MaxClients; i++) {
+			if (players[i] == 0) {
+				players[i] = client;
+				break;
+			}
+		}
 
-		this.groups.SetArray(group, players, player);
+		this.groups.SetArray(group, players);
 		return true;
 	}
 
@@ -49,16 +53,20 @@ enum struct Group {
 		}
 
 		int[] players = new int[MaxClients];
-		int player = this.groups.GetArray(group, players);
+		int playerCount = this.groups.GetArray(group, players);
 
-		for (int i = 0; i < player; i++) {
+		for (int i = 0; i < playerCount; i++) {
 			if (players[i] == client) {
-				players[i] = 0;
+				for (int j = i; j < playerCount - 1; j++) {
+					players[j] = players[j + 1];
+				}
+				
+				players[playerCount - 1] = 0;
 				break;
 			}
 		}
 
-		this.groups.SetArray(group, players, player);
+		this.groups.SetArray(group, players, playerCount - 1);
 		return true;
 	}
 

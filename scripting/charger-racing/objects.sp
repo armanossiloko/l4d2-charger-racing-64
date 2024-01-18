@@ -361,7 +361,7 @@ public int MenuHandler_SpawnProp(Menu menu, MenuAction action, int param1, int p
 		case MenuAction_Select: {
 			if (StrEqual(sInfo, "class")) {
 				g_SpawningObjects[param1].SetClass(g_SpawningObjects[param1].IsSurvivor() ? "prop_dynamic_override" : "info_l4d1_survivor_spawn");
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "object type changed", param1, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
+				PrintToClient(param1, "%T", "object type changed", param1, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
 				OpenSpawnPropMenu(param1);
 			} else if (StrEqual(sInfo, "origin")) {
 				float origin[3];
@@ -375,7 +375,7 @@ public int MenuHandler_SpawnProp(Menu menu, MenuAction action, int param1, int p
 			} else if (StrEqual(sInfo, "skin")) {
 				OpenSpawnPropSkinMenu(param1);
 			} else if (StrEqual(sInfo, "save")) {
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "object saved", param1, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
+				PrintToClient(param1, "%T", "object saved", param1, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
 				SaveNewProp(param1);
 			}
 		}

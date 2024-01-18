@@ -2,6 +2,42 @@ bool IsModeEnabled() {
 	return convar_Enabled.BoolValue;
 }
 
+void PrintToClient(int client, const char[] format, any ...) {
+	char mode[64];
+	GetModeName(g_State.mode, mode, sizeof(mode));
+
+	char buffer[1024];
+	VFormat(buffer, sizeof(buffer), format, 3);
+	CPrintToChat(client, "%T%s", "print tag", client, mode, buffer);
+}
+
+void PrintToClients(const char[] format, any ...) {
+	char mode[64];
+	GetModeName(g_State.mode, mode, sizeof(mode));
+
+	char buffer[1024];
+	VFormat(buffer, sizeof(buffer), format, 2);
+	CPrintToChatAll("%t%s", "print tag", mode, buffer);
+}
+
+void ReplyToClient(int client, const char[] format, any ...) {
+	char mode[64];
+	GetModeName(g_State.mode, mode, sizeof(mode));
+
+	char buffer[1024];
+	VFormat(buffer, sizeof(buffer), format, 3);
+	CReplyToCommand(client, "%T%s", "print tag", client, mode, buffer);
+}
+
+void PrintHintTextToClients(const char[] format, any ...) {
+	char mode[64];
+	GetModeName(g_State.mode, mode, sizeof(mode));
+
+	char buffer[1024];
+	VFormat(buffer, sizeof(buffer), format, 2);
+	PrintHintTextToAll("%t%s", "print tag no color", mode, buffer);
+}
+
 void ModeLog(const char[] format, any ...) {
 	char buffer[1024];
 	VFormat(buffer, sizeof(buffer), format, 2);
@@ -269,7 +305,7 @@ float GetDistance(float origin1[3], float origin2[3]) {
 	return GetVectorDistance(origin1, origin2);
 }
 
-int GetTeamAliveCount(int team) {
+stock int GetTeamAliveCount(int team) {
 	int count;
 
 	for (int i = 1; i <= MaxClients; i++) {
@@ -386,7 +422,7 @@ int FindAvailablePlayer() {
 	int total;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || HasGroup(i)) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || HasGroup(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
 			continue;
 		}
 
@@ -447,19 +483,19 @@ stock bool IsPlayersPlaying() {
 }
 
 int GetWinnerForSingles() {
-	int winner;
+	int winner = -1;
 
 	for (int i = 1; i <= MaxClients; i++) {
 		if (!IsClientInGame(i) || IsFakeClient(i) || !g_Player[i].playing) {
 			continue;
 		}
 
-		if (winner == 0) {
+		if (winner == -1) {
 			winner = i;
 			continue;
 		}
 
-		if (g_Player[i].points > g_Player[winner].points) {
+		if (g_Player[i].cache_points > g_Player[winner].cache_points) {
 			winner = i;
 		}
 	}
@@ -547,13 +583,21 @@ void GetDifficultyName(Difficulty difficulty, char[] buffer, int size) {
 	}
 }
 
-int GetChargerTeamScore(int team) {
-	int score;
+int GetGroupScore(int group) {
+	int[] players = new int[MaxClients];
+	g_Groups.GetGroupMembers(group, players);
 
-	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected && g_Player[i].team == team) {
-			score += g_Player[i].points;
+	int score; int client;
+	for (int i = 0; i < MaxClients; i++) {
+		if ((client = players[i]) == 0) {
+			continue;
 		}
+
+		if (client < 1) {
+			continue;
+		}
+
+		score += g_Player[client].points;
 	}
 
 	return score;
@@ -562,13 +606,13 @@ int GetChargerTeamScore(int team) {
 int GetTopScores(int max, int[] clients, int[] scores, bool finished = false) {
 	int total = max;
 
-	if (total >= GetTeamAliveCount(3)) {
-		total = GetTeamAliveCount(3);
-	}
-
 	int val;
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || L4D_GetClientTeam(i) != L4DTeam_Infected || (finished && g_Player[i].finished)) {
+		if (!g_Player[i].playing) {
+			continue;
+		}
+
+		if ((finished && !g_Player[i].finished)) {
 			continue;
 		}
 
@@ -577,8 +621,19 @@ int GetTopScores(int max, int[] clients, int[] scores, bool finished = false) {
 
 	SortCustom1D(clients, val, OnSortScores);
 
+	int client;
 	for (int i = 0; i < total; i++) {
-		scores[i] = g_Player[clients[i]].points;
+		client = clients[i];
+
+		if (g_Player[client].cache_points > 0) {
+			scores[i] = g_Player[client].cache_points;
+		} else {
+			scores[i] = g_Player[clients[i]].points;
+		}
+	}
+
+	if (total > val) {
+		total = val;
 	}
 
 	return total;
@@ -719,4 +774,40 @@ int FindValueInADTArray(any[] array, int size, any value, int start = 0) {
 	}
 
 	return -1;
+}
+
+stock int FindTargetEx(int client, const char[] target, bool nobots = false, bool immunity = true) {
+	int flags = COMMAND_FILTER_NO_MULTI;
+	
+	if (nobots) {
+		flags |= COMMAND_FILTER_NO_BOTS;
+	}
+	
+	if (!immunity) {
+		flags |= COMMAND_FILTER_NO_IMMUNITY;
+	}
+	
+	char target_name[MAX_TARGET_LENGTH];
+	int target_list[1];
+	bool tn_is_ml;
+	
+	if (ProcessTargetString(target, client, target_list, 1, flags, target_name, sizeof(target_name), tn_is_ml) > 0) {
+		return target_list[0];
+	}
+	
+	return -1;
+}
+
+int GetReadyPlayers() {
+	int count;
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || !g_Player[i].ready) {
+			continue;
+		}
+
+		count++;
+	}
+
+	return count;
 }

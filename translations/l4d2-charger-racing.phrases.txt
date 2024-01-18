@@ -1,9 +1,21 @@
 "Phrases"
 {
+	"print tag"
+	{
+		"#format"	"{1:s}"
+		"en"	"{green}[{olive}Racing {default}| {olive}{1}{green}] {default} "
+	}
+
+	"print tag no color"
+	{
+		"#format"	"{1:s}"
+		"en"	"[Racing | {1}] "
+	}
+
 	"prepare center hud"
 	{
 		"#format"	"{1:s},{2:s},{3:s}"
-		"en"	"Preparing to race {1}... {2}{3}"
+		"en"	"[{1}] Preparing to race... {2}{3}"
 	}
 
 	"voted for track"
@@ -117,13 +129,13 @@
 	"added to slot queue"
 	{
 		"#format"	"{1:i}"
-		"en"	"You have been added to queue in slot: {olive}{1}"
+		"en"	"You are queued for slot: {olive}{1}"
 	}
 
 	"added to group queue"
 	{
 		"#format"	"{1:i}"
-		"en"	"You have been added to group: {olive}{1}"
+		"en"	"You have joined team: {olive}{1}"
 	}
 
 	"you're up"
@@ -145,7 +157,7 @@
 	"points lost for skipping nodes"
 	{
 		"#format"	"{1:i},{2:i}"
-		"en"	"You have lost {olive}{1} {default}points for skipping {olive}{2} {default}node."
+		"en"	"You have lost {olive}{1} {default}points for skipping {olive}{2} {default}node(s)."
 	}
 
 	"points gained for reaching node"
@@ -298,6 +310,11 @@
 		"en"	"A vote is already in progress."
 	}
 
+	"reply vote for track empty"
+	{
+		"en"	"Failed to show track votes since there's no tracks to vote for."
+	}
+
 	"reply track not found"
 	{
 		"en"	"Track not found, please try again."
@@ -349,5 +366,38 @@
 	{
 		"#format"	"{1:s}"
 		"en"	"Current state of the game: {olive}{1}"
+	}
+
+	"mode set successfully"
+	{
+		"#format"	"{1:s}"
+		"en"	"Mode has been set successfully to: {olive}{1}"
+	}
+
+	"mode set unsuccessfully"
+	{
+		"#format"	"{1:s},{2:s}"
+		"en"	"Failed to set mode to {olive}{1}{default}: {olive}{2}"
+	}
+
+	"must be in preparation phase"
+	{
+		"en"	"This command is only allowed to be used during the preparation phase."
+	}
+
+	"ready toggle"
+	{
+		"#format"	"{1:s}"
+		"en"	"Ready Check: {olive}{1}"
+	}
+
+	"not ready moved to spec"
+	{
+		"en"	"You have been moved to spec since you were not ready."
+	}
+
+	"match is ending"
+	{
+		"en"	"The match is ending..."
 	}
 }

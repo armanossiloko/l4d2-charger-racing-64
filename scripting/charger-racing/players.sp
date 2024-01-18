@@ -24,7 +24,6 @@ enum struct Player {
 	int points;			//How many points the player has accumulated throughout the race total.
 	int currentnode;	//The current node the player is on in the track.
 	ArrayList speeds;	//Helpful for calculating averages in order to give points.
-	int team;			//The team the player is on if the mode is teams.
 	bool charging;		//Whether or not the player is charging.
 	float jumpdelay;	//The delay between jumps while charging.
 	bool hud;			//Whether the hud should be shown or not.
@@ -33,6 +32,9 @@ enum struct Player {
 	float time;			//How many precise seconds has it been since the race started?
 	int spawnent;		//The entity index of the prop or bot being created.
 	Statistics stats;	//Cached statistics for the player stored via cache.
+	int cache_points;	//Cached points for the player stored via cache.
+	float cache_time;	//Cached time for the player stored via cache.
+	bool ready;			//Whether the player is ready or not for the next match.
 
 	void Init(int client) {
 		this.client = client;
@@ -40,7 +42,6 @@ enum struct Player {
 		this.currentnode = 0;
 		this.SyncHud();
 		this.speeds = new ArrayList();
-		this.team = 0;
 		this.charging = false;
 		this.jumpdelay = 0.0;
 		this.hud = true;
@@ -48,6 +49,9 @@ enum struct Player {
 		this.time = 0.0;
 		this.spawnent = -1;
 		this.stats.Init();
+		this.cache_points = 0;
+		this.cache_time = 0.0;
+		this.ready = false;
 	}
 
 	void SetPoints(int points) {
@@ -102,29 +106,41 @@ enum struct Player {
 
 		switch (g_State.mode) {
 			case MODE_SINGLES: {
-				int[] clients = new int[MaxClients]; int[] scores = new int[MaxClients];
-				int total = GetTopScores(MaxClients, clients, scores, true);
+				int[] clients = new int[MaxClients];
+				int[] scores = new int[MaxClients];
+
+				int total = GetTopScores(MaxClients, clients, scores);
+
+				char sTime[64];
 				for (int i = 0; i < total; i++) {
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)\n", sBuffer, i + 1, clients[i], scores[i]);
+					FormatSeconds((g_Player[i].cache_time > 0) ? g_Player[i].cache_time : g_Player[i].GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], sTime);
 				}
 			}
 
 			case MODE_GROUPS: {
 				int clients[5]; int scores[5];
 				int total = GetTopScores(5, clients, scores);
+
+				char sTime[64];
 				for (int i = 0; i < total; i++) {
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)\n", sBuffer, i + 1, clients[i], scores[i]);
+					FormatSeconds((g_Player[i].cache_time > 0) ? g_Player[i].cache_time : g_Player[i].GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], sTime);
 				}
 			}
 
 			case MODE_TEAMS: {
-				int score1 = GetChargerTeamScore(1);
-				int score2 = GetChargerTeamScore(2);
-				FormatEx(sBuffer, sizeof(sBuffer), "Team: #1 (%i)\nTeam: #2 (%i)", score1, score2);
+				for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
+					int score = GetGroupScore(i);
+					FormatEx(sBuffer, sizeof(sBuffer), "Team: #%i (%i)\n", (i + 1), score);
+				}
 			}
 
 			case MODE_GROUPTEAMS: {
-
+				for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
+					int score = GetGroupScore(i);
+					FormatEx(sBuffer, sizeof(sBuffer), "Team: #%i (%i)\n", (i + 1), score);
+				}
 			}
 		}
 
@@ -136,7 +152,11 @@ enum struct Player {
 		char sTitle[256]; FormatEx(sTitle, sizeof(sTitle), "Leaderboard (Points: %i) (%s)", this.points, sTime);
 		panel.SetTitle(sTitle);
 		panel.DrawText("----------------");
-		panel.DrawText(sBuffer);
+		if (g_State.status == STATUS_PREPARING) {
+			panel.DrawText("Waiting to race...");
+		} else {
+			panel.DrawText(sBuffer);
+		}
 		panel.Send(this.client, MenuAction_Void, MENU_TIME_FOREVER);
 		delete panel;
 	}
@@ -167,7 +187,16 @@ enum struct Player {
 	}
 
 	float GetTime() {
+		if (this.time == 0.0) {
+			return 0.0;
+		}
+		
 		return GetGameTime() - this.time;
+	}
+
+	void Cache() {
+		this.cache_points = this.points;
+		this.cache_time = this.GetTime();
 	}
 
 	void Delete() {
@@ -175,7 +204,6 @@ enum struct Player {
 		this.points = 0;
 		this.currentnode = 0;
 		delete this.speeds;
-		this.team = 0;
 		this.charging = false;
 		this.jumpdelay = 0.0;
 		this.hud = true;
@@ -183,5 +211,8 @@ enum struct Player {
 		this.time = 0.0;
 		this.spawnent = -1;
 		this.stats.Clear();
+		this.cache_points = 0;
+		this.cache_time = 0.0;
+		this.ready = false;
 	}
 }

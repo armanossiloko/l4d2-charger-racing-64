@@ -81,12 +81,7 @@ public int Native_GetTrack(Handle plugin, int numParams) {
 
 public int Native_SetMode(Handle plugin, int numParams) {
 	Modes mode = GetNativeCell(1);
-
-	if (mode < MODE_SINGLES || mode > MODE_GROUPTEAMS) {
-		return 0;
-	}
-
-	return SetMode(mode);
+	return view_as<int>(SetMode(mode));
 }
 
 public int Native_GetMode(Handle plugin, int numParams) {

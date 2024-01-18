@@ -72,7 +72,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 		
 		//If the player is racing but dies, move onto the next player then end the race.
 		g_Player[client].finished = true;
-		CPrintToChatAll("%s%t", PLUGIN_TAG, "finished the race", client);
+		PrintToClients("%t", "finished the race", client);
 
 		if (AllPlayersFinished()) {
 			EndRace();

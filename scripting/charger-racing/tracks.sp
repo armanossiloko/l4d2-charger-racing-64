@@ -209,12 +209,7 @@ void IsNearNode(int client, int index) {
 
 		//Update their points and tell them how many they missed.
 		g_Player[client].AddPoints(points);
-		CPrintToChat(client, "%s%T", PLUGIN_TAG, "points lost for skipping nodes", client, total, missed);
-
-		//Update their current node.
-		g_Player[client].currentnode = index;
-
-		return;
+		PrintToClient(client, "%T", "points lost for skipping nodes", client, total, missed);
 	}
 
 	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
@@ -233,7 +228,7 @@ void IsNearNode(int client, int index) {
 
 		//Give the points and update the hud.
 		g_Player[client].AddPoints(points);
-		CPrintToChat(client, "%s%T", PLUGIN_TAG, "points gained for reaching node", client, index, points);
+		PrintToClient(client, "%T", "points gained for reaching node", client, index, points);
 
 		//Update their current node.
 		g_Player[client].currentnode = index;
@@ -246,16 +241,7 @@ void IsNearFinish(int client) {
 	}
 
 	g_Player[client].finished = true;
-	CPrintToChatAll("%s%t", PLUGIN_TAG, "finished the race", client);
-
-	if (convar_Death_On_Finish.BoolValue) {
-		ForcePlayerSuicide(client);
-	}
-
-	char sTime[32];
-	FormatSeconds(g_Player[client].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
-	
-	CPrintToChat(client, "%s%T", PLUGIN_TAG, "time and score", client, sTime, g_Player[client].points);
+	PrintToClients("%t", "finished the race", client);
 
 	int points = g_Points.Get(g_State.mode, "finished");
 
@@ -264,6 +250,16 @@ void IsNearFinish(int client) {
 	}
 
 	g_Player[client].AddPoints(points);
+	g_Player[client].Cache();
+
+	char sTime[32];
+	FormatSeconds(g_Player[client].cache_time, sTime, sizeof(sTime), "%M:%S", true);
+
+	PrintToClient(client, "%T", "time and score", client, sTime, g_Player[client].cache_points);
+
+	if (convar_Death_On_Finish.BoolValue) {
+		ForcePlayerSuicide(client);
+	}
 
 	if (AllPlayersFinished()) {
 		switch (g_State.mode) {
@@ -271,7 +267,7 @@ void IsNearFinish(int client) {
 				int winner = GetWinnerForSingles();
 
 				if (winner == -1) {
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "no winner for player");
+					PrintToClients("%t", "no winner for player");
 				} else {
 					points = g_Points.Get(g_State.mode, "winner");
 
@@ -284,7 +280,7 @@ void IsNearFinish(int client) {
 					g_Player[winner].stats.wins++;
 					IncrementStat(winner, "wins");
 					
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "winner for player", winner, g_Player[winner].points);
+					PrintToClients("%t", "winner for player", winner, g_Player[winner].points);
 
 					for (int i = 1; i <= MaxClients; i++) {
 						if (IsClientAuthorized(i) && winner != i) {
@@ -298,22 +294,21 @@ void IsNearFinish(int client) {
 				int group = GetWinnerGroup();
 				
 				if (group == -1) {
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "no winner for team");
+					PrintToClients("%t", "no winner for team");
 				} else {
 					int[] players = new int[MaxClients];
 					g_Groups.GetGroupMembers(group, players);
-
-					PrintToServer("Group: %i", group);
-					for (int i = 0; i <= MaxClients; i++) {
-						PrintToServer(" - Player: %i", players[i]);
-					}
-
+					
 					points = g_Points.Get(g_State.mode, "winner");
 
 					int total; int temp; int player;
-					for (int i = 0; i <= MaxClients; i++) {
+					for (int i = 0; i < MaxClients; i++) {
 						temp = points;
 						player = players[i];
+
+						if (player < 1) {
+							continue;
+						}
 
 						if (L4D2_GetInfectedAttacker(player) != -1) {
 							temp += g_Points.Get(g_State.mode, "survivor");
@@ -333,7 +328,7 @@ void IsNearFinish(int client) {
 						}
 					}
 
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "winner for team", group, total);
+					PrintToClients("%t", "winner for team", group, total);
 				}
 			}
 		}
@@ -397,7 +392,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 
 			if (StrEqual(sInfo, "name")) {
 				g_SettingName[param1] = true;
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "editor enter a track name", param1);
+				PrintToClient(param1, "%T", "editor enter a track name", param1);
 				return 0;
 			} else if (StrEqual(sInfo, "difficulty")) {
 				g_CreatingTrack[param1].difficulty++;
@@ -422,7 +417,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 					SaveTrack(param1);
 					return 0;
 				} else {
-					CPrintToChat(param1, "%s%T", PLUGIN_TAG, "missing data while saving", param1);
+					PrintToClient(param1, "%T", "missing data while saving", param1);
 				}
 			}
 
@@ -629,7 +624,7 @@ void SaveTrack(int client) {
 	g_Tracks[index].nodes = g_CreatingTrack[client].nodes.Clone();
 	g_Tracks[index].colors = g_CreatingTrack[client].colors.Clone();
 
-	CPrintToChat(client, "%s%T", PLUGIN_TAG, "editor track save", client);
+	PrintToClient(client, "%T", "editor track save", client);
 	g_CreatingTrack[client].Delete();
 
 	SaveTracks(g_TracksPath);
@@ -722,13 +717,13 @@ public int MenuHandler_AskConfirmDeleteTrack(Menu menu, MenuAction action, int p
 
 			if (StrEqual(sInfo, "Yes")) {
 				if (DeleteTrack(id)) {
-					CPrintToChat(param1, "%s%T", PLUGIN_TAG, "track deleted", param1);
+					PrintToClient(param1, "%T", "track deleted", param1);
 					ParseTracks(g_TracksPath);
 				} else {
-					CPrintToChat(param1, "%s%T", PLUGIN_TAG, "track deletion failed", param1);
+					PrintToClient(param1, "%T", "track deletion failed", param1);
 				}
 			} else if (StrEqual(sInfo, "No")) {
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "track not deleted", param1);
+				PrintToClient(param1, "%T", "track not deleted", param1);
 			}
 
 			OpenTracksMenu(param1, Action_Delete);
@@ -823,7 +818,7 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 
 			if (StrEqual(sInfo, "name")) {
 				g_SettingName[param1] = true;
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "enter new track name", param1);
+				PrintToClient(param1, "%T", "enter new track name", param1);
 				return 0;
 			} else if (StrEqual(sInfo, "difficulty")) {
 				g_Tracks[id].difficulty++;
@@ -969,12 +964,12 @@ public int MenuHandler_AskConfirmSetTrack(Menu menu, MenuAction action, int para
 
 			if (StrEqual(sInfo, "Yes")) {
 				if (SetTrack(id)) {
-					CPrintToChat(param1, "%s%T", PLUGIN_TAG, "track set successfully", param1);
+					PrintToClient(param1, "%T", "track set successfully", param1);
 				} else {
-					CPrintToChat(param1, "%s%T", PLUGIN_TAG, "track set failed", param1);
+					PrintToClient(param1, "%T", "track set failed", param1);
 				}
 			} else if (StrEqual(sInfo, "No")) {
-				CPrintToChat(param1, "%s%T", PLUGIN_TAG, "track not changed", param1);
+				PrintToClient(param1, "%T", "track not changed", param1);
 			}
 
 			OpenTracksMenu(param1, Action_Set);
@@ -1004,9 +999,9 @@ bool SetTrack(int id, bool verbose = true) {
 	
 	if (verbose) {
 		if (g_State.track != NO_TRACK) {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "track set to existing", g_Tracks[id].name);
+			PrintToClients("%t", "track set to existing", g_Tracks[id].name);
 		} else {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "track set to none");
+			PrintToClients("%t", "track set to none");
 		}
 	}
 

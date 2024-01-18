@@ -14,8 +14,8 @@
 
 //Defines
 #define PLUGIN_VERSION "1.0.0"
-#define PLUGIN_TAG "{green}[Racing] {default}"
-#define PLUGIN_TAG_NOCOLOR "[Racing] "
+//#define PLUGIN_TAG "{green}[Racing] {default}"
+//#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
 #define TABLE_STATS "l4d2cr_stats"
 
@@ -174,7 +174,7 @@ public void OnPluginStart() {
 	convar_Racing_Timer = CreateConVar("sm_l4d2_charger_racing_timer", "360", "How long should races be in terms of time max?", FCVAR_NOTIFY, true, 0.0);
 	convar_Charging_Particle = CreateConVar("sm_l4d2_charger_racing_charging_particle", "", "Which particle should be attached to the Charger while charging?", FCVAR_NOTIFY);
 	convar_Rounds = CreateConVar("sm_l4d2_charger_racing_rounds", "5", "How many rounds total before the map automatically changes?", FCVAR_NOTIFY, true, 0.0);
-	convar_Ratio = CreateConVar("sm_l4d2_charger_racing_ratio", "0.25", "Percentage of players to split into groups?\n(0.25 = 25%, 0.50 = 50%, etc.)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Ratio = CreateConVar("sm_l4d2_charger_racing_ratio", "0.5", "Percentage of players to split into groups?\n(0.25 = 25%, 0.50 = 50%, etc.)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Items = CreateConVar("sm_l4d2_charger_racing_spawns_items", "1", "Should the items be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -215,6 +215,7 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_commands", Command_Commands, "Shows the available commands for the gamemode.");
 	RegConsoleCmd2("sm_track", Command_Track, "Prints out to chat which track is currently set.");
 	RegConsoleCmd2("sm_stats", Command_Stats, "Shows your current statistics.");
+	RegConsoleCmd2("sm_ready", Command_Ready, "Ready up to play the next match.");
 
 	//Track Commands
 	RegAdminCmd2("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
@@ -240,6 +241,9 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
 	RegAdminCmd2("sm_state", Command_State, ADMFLAG_ROOT, "Prints out the current state of the game.");
 
+	RegAdminCmd2("sm_respawn", Command_Respawn, ADMFLAG_ROOT, "Respawns yourself or another player.");
+	RegAdminCmd2("sm_groups", Command_Groups, ADMFLAG_ROOT, "Shows the current list of groups and players.");
+
 	//General
 	g_GameData.Init();
 	g_Cookies.Init();
@@ -260,7 +264,7 @@ public void OnPluginStart() {
 	//Second ticker and chat print
 	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
 
-	CPrintToChatAll("%sCharger Racing 64 has been loaded.", PLUGIN_TAG);
+	PrintToClients("Charger Racing 64 has been loaded.");
 }
 
 public void OnSQLConnect(Database db, const char[] error, any data) {
@@ -633,11 +637,7 @@ public void OnGameFrame() {
 
 public void L4D_OnEnterGhostState(int client) {
 	L4D_MaterializeFromGhost(client);
-
-	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
-		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
-	}
-
+	L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 	TeleportToSurvivorPos(client);
 }
 
@@ -662,9 +662,7 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	}
 
 	//Make sure the player is a charger and no other type of zombie.
-	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
-		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
-	}
+	L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 
 	//Teleport the player to a survivor position at the start of the map.
 	if (g_State.status == STATUS_NONE || g_State.status == STATUS_PREPARING) {
@@ -708,15 +706,29 @@ public Action Timer_Tick(Handle timer) {
 		char sTime[64];
 		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", false);
 
-		PrintHintTextToAll("%t", "prepare center hud", sName, sTime, g_State.paused ? " (Paused)" : "");
+		bool pause;
+		char reason[64];
 
-		if (!g_State.paused) {
+		if (GetReadyPlayers() == 0) {
+			pause = true;
+			strcopy(reason, sizeof(reason), " (No Ready Players Found)");
+		}
+		
+		if (g_State.mode == MODE_TEAMS || g_State.mode == MODE_GROUPTEAMS) {
+			if (GetTeamAliveCount(view_as<int>(L4DTeam_Infected)) < 2) {
+				pause = true;
+				strcopy(reason, sizeof(reason), " (Waiting for More Players)");
+			}
+		}
+
+		PrintHintTextToAll("%t", "prepare center hud", sName, sTime, (pause ? reason : g_State.paused ? " (Paused)" : ""));
+
+		if (!g_State.paused && !pause) {
 			g_State.timer--;
 		}
 
 		if (g_State.timer <= 0.0) {
-			g_State.SetupGroups();
-			g_State.Ready(true);
+			g_State.StartRace();
 		}
 		
 		return Plugin_Continue;
@@ -724,20 +736,13 @@ public Action Timer_Tick(Handle timer) {
 
 	if (g_State.countdown > -1) {
 		if (g_State.countdown > 0) {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "race starting in print", g_State.countdown);
-			PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race starting in center", g_State.countdown);
+			PrintToClients("%t", "race starting in print", g_State.countdown);
+			PrintHintTextToClients("%t", "race starting in center", g_State.countdown);
 		} else {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "race starting go print");
-			PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race starting go center");
+			PrintToClients("%t", "race starting go print");
+			PrintHintTextToClients("%t", "race starting go center");
 			
 			g_State.Racing();
-			g_API.Call_OnStartRace();
-
-			for (int i = 1; i <= MaxClients; i++) {
-				g_Player[i].finished = false;
-				g_Player[i].time = GetGameTime();
-				g_API.Call_OnPlayerStart(i);
-			}
 		}
 
 		g_State.countdown--;
@@ -757,7 +762,7 @@ public Action Timer_Tick(Handle timer) {
 		switch (g_State.mode) {
 			case MODE_SINGLES, MODE_TEAMS: {
 				if (AllPlayersFinished()) {
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
+					PrintToClients("%t", "race times up print");
 					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
 					EndRace();
@@ -768,7 +773,7 @@ public Action Timer_Tick(Handle timer) {
 
 			case MODE_GROUPS, MODE_GROUPTEAMS: {
 				if (g_State.group > g_Groups.GetTotalGroups()) {
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "race times up print");
+					PrintToClients("%t", "race times up print");
 					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
 					EndRace();
@@ -939,22 +944,12 @@ public void OnInfectedSpawned(int entity) {
 	}
 }
 
-public void Frame_DelayReady(any data) {
+public void Frame_DelayFinish(any data) {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i)) {
+		if (!IsClientInGame(i) || IsFakeClient(i)) {
 			continue;
 		}
 		
-		g_Player[i].playing = true;
-		g_Player[i].finished = false;
-	}
-}
-
-public void Frame_DelayFinish(any data) {
-	for (int i = 1; i <= MaxClients; i++) {
-		g_Player[i].playing = false;
-		g_Player[i].finished = false;
-		g_Player[i].points = 0;
 		g_API.Call_OnPlayerFinish(i);
 	}
 }

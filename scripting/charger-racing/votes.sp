@@ -3,9 +3,15 @@ enum struct Vote {
 	Menu menu;	//The menu handle itself.
 }
 
-bool CallTrackVote(int track = NO_TRACK) {
+enum VoteStats {
+	VoteState_InProgress,
+	VoteState_Active,
+	VoteState_Empty
+}
+
+VoteStats CallTrackVote(int track = NO_TRACK) {
 	if (IsVoteInProgress()) {
-		//return false;
+		return VoteState_InProgress;
 	}
 
 	g_Vote.track = track;
@@ -22,24 +28,20 @@ bool CallTrackVote(int track = NO_TRACK) {
 
 		char sID[16];
 		for (int i = 0; i < g_TotalTracks; i++) {
-			if (i == g_State.track) {
-				continue;
-			}
-
 			IntToString(i, sID, sizeof(sID));
 			g_Vote.menu.AddItem(sID, g_Tracks[i].name);
 		}
 
 		if (g_Vote.menu.ItemCount == 0) {
 			delete g_Vote.menu;
-			return false;
+			return VoteState_Empty;
 		}
 	}
 
 	g_Vote.menu.ExitButton = false;
 	g_Vote.menu.DisplayVoteToAll(20);
 
-	return true;
+	return VoteState_Active;
 }
 
 public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, int param2) {
@@ -54,14 +56,14 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 	switch (action) {
 		case MenuAction_Select: {
 			if (g_Vote.track != NO_TRACK) {
-				CPrintToChatAll("%s%t", PLUGIN_TAG, "voted for track", param1, g_Tracks[g_Vote.track].name);
+				PrintToClients("%t", "voted for track", param1, g_Tracks[g_Vote.track].name);
 			} else {
-				CPrintToChatAll("%s%t", PLUGIN_TAG, "voted for next track", param1, sDisplay);
+				PrintToClients("%t", "voted for next track", param1, sDisplay);
 			}
 		}
 
 		case MenuAction_VoteEnd: {
-			CPrintToChatAll("%s%t", PLUGIN_TAG, "vote has ended");
+			PrintToClients("%t", "vote has ended");
 
 			int winningvotes, totalvotes;
 			GetMenuVoteInfo(param2, winningvotes, totalvotes);
@@ -70,9 +72,9 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 				//0 = yes, 1 = no
 				if (param1 == 0) {
 					SetTrack(g_Vote.track);
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "vote results track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					PrintToClients("%t", "vote results track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
 				} else {
-					CPrintToChatAll("%s%t", PLUGIN_TAG, "vote results track not selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					PrintToClients("%t", "vote results track not selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
 				}
 
 			} else {
@@ -80,7 +82,7 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 				menu.GetItem(param1, sWinner, sizeof(sWinner), _, sName, sizeof(sName));
 
 				SetTrack(StringToInt(sWinner));
-				CPrintToChatAll("%s%t", PLUGIN_TAG, "vote results track selected", sName, winningvotes, totalvotes);
+				PrintToClients("%t", "vote results track selected", sName, winningvotes, totalvotes);
 			}
 
 			g_Vote.track = NO_TRACK;
