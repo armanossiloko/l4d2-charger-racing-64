@@ -84,7 +84,7 @@ public void AdminMenu_Survivor(TopMenu topmenu, TopMenuAction action, TopMenuObj
 			strcopy(buffer, maxlength, "Spawn a Fake Survivor");
 		}
 		case TopMenuAction_SelectOption: {
-			FakeClientCommand(param, "sm_endrace");
+			FakeClientCommand(param, "sm_survivor");
 		}
 	}
 }

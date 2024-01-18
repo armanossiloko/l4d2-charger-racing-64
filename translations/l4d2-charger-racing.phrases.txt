@@ -41,6 +41,12 @@
 		"en"	"The track {olive}{1} {default}has been selected. [{olive}{2} {default}/ {olive}{3} {default}total]"
 	}
 
+	"vote results next track selected"
+	{
+		"#format"	"{1:s},{2:i},{3:i}"
+		"en"	"The next track {olive}{1} {default}has been selected. [{olive}{2} {default}/ {olive}{3} {default}total]"
+	}
+
 	"vote results track not selected"
 	{
 		"#format"	"{1:s},{2:i},{3:i}"

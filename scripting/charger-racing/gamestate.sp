@@ -1,5 +1,6 @@
 enum struct GameState {
 	int track;		//The track that is currently being used.
+	int nexttrack;	//The track that will be used next.
 	Status status;	//Status of the mode.
 	Modes mode;		//Mode to use.
 	int countdown;	//Countdown from 3 to GO!
@@ -11,6 +12,7 @@ enum struct GameState {
 
 	void Init() {
 		this.track = NO_TRACK;
+		this.nexttrack = NO_TRACK;
 		this.status = STATUS_NONE;
 		this.mode = MODE_SINGLES;
 		this.countdown = 0;
@@ -49,6 +51,11 @@ enum struct GameState {
 			g_Player[i].cache_points = 0;
 			g_Player[i].cache_time = 0.0;
 			g_Player[i].ready = false;
+		}
+
+		if (this.nexttrack != NO_TRACK) {
+			this.track = this.nexttrack;
+			this.nexttrack = NO_TRACK;
 		}
 	}
 
@@ -297,6 +304,11 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 		case MenuAction_Select: {
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			if (g_State.status != STATUS_PREPARING) { 
+				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
+				return 0;
+			}
 
 			Modes mode;
 			if (StrEqual(sInfo, "Players")) {

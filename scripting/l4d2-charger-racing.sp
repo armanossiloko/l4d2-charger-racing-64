@@ -239,10 +239,11 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_spawnbot", Command_SpawnBot, ADMFLAG_ROOT, "Spawns a specific bot at the location you're looking at.");
 	RegAdminCmd2("sm_delete", Command_Delete, ADMFLAG_ROOT, "Delete an object from the track.");
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
-	RegAdminCmd2("sm_state", Command_State, ADMFLAG_ROOT, "Prints out the current state of the game.");
 
-	RegAdminCmd2("sm_respawn", Command_Respawn, ADMFLAG_ROOT, "Respawns yourself or another player.");
-	RegAdminCmd2("sm_groups", Command_Groups, ADMFLAG_ROOT, "Shows the current list of groups and players.");
+	//Debugging Commands
+	RegAdminCmd("sm_state", Command_State, ADMFLAG_ROOT, "Prints out the current state of the game.");
+	RegAdminCmd("sm_respawn", Command_Respawn, ADMFLAG_ROOT, "Respawns yourself or another player.");
+	RegAdminCmd("sm_groups", Command_Groups, ADMFLAG_ROOT, "Shows the current list of groups and players.");
 
 	//General
 	g_GameData.Init();

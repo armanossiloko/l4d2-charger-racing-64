@@ -45,16 +45,15 @@ VoteStats CallTrackVote(int track = NO_TRACK) {
 }
 
 public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, int param2) {
-	if (!IsModeEnabled()) {
-		delete menu;
-		return 0;
-	}
-
 	char sInfo[64]; char sDisplay[64];
 	menu.GetItem(param2, sInfo, sizeof(sInfo), _, sDisplay, sizeof(sDisplay));
 	
 	switch (action) {
 		case MenuAction_Select: {
+			if (!IsModeEnabled()) {
+				return 0;
+			}
+
 			if (g_Vote.track != NO_TRACK) {
 				PrintToClients("%t", "voted for track", param1, g_Tracks[g_Vote.track].name);
 			} else {
@@ -63,6 +62,10 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 		}
 
 		case MenuAction_VoteEnd: {
+			if (!IsModeEnabled()) {
+				return 0;
+			}
+
 			PrintToClients("%t", "vote has ended");
 
 			int winningvotes, totalvotes;
@@ -71,8 +74,13 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 			if (g_Vote.track != NO_TRACK) {
 				//0 = yes, 1 = no
 				if (param1 == 0) {
-					SetTrack(g_Vote.track);
-					PrintToClients("%t", "vote results track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					if (g_State.status != STATUS_PREPARING) { 
+						SetNextTrack(g_Vote.track);
+						PrintToClients("%t", "vote results next track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					} else {
+						SetTrack(g_Vote.track);
+						PrintToClients("%t", "vote results track selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
+					}
 				} else {
 					PrintToClients("%t", "vote results track not selected", g_Tracks[g_Vote.track].name, winningvotes, totalvotes);
 				}
@@ -81,8 +89,13 @@ public int MenuHandler_VoteCallback(Menu menu, MenuAction action, int param1, in
 				char sWinner[64]; char sName[64];
 				menu.GetItem(param1, sWinner, sizeof(sWinner), _, sName, sizeof(sName));
 
-				SetTrack(StringToInt(sWinner));
-				PrintToClients("%t", "vote results track selected", sName, winningvotes, totalvotes);
+				if (g_State.status != STATUS_PREPARING) {
+					SetNextTrack(StringToInt(sWinner));
+					PrintToClients("%t", "vote results next track selected", sName, winningvotes, totalvotes);
+				} else {
+					SetTrack(StringToInt(sWinner));
+					PrintToClients("%t", "vote results track selected", sName, winningvotes, totalvotes);
+				}
 			}
 
 			g_Vote.track = NO_TRACK;

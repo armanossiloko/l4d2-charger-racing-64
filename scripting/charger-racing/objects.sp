@@ -359,6 +359,11 @@ public int MenuHandler_SpawnProp(Menu menu, MenuAction action, int param1, int p
 		}
 
 		case MenuAction_Select: {
+			if (g_State.status != STATUS_PREPARING) { 
+				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
+				return 0;
+			}
+
 			if (StrEqual(sInfo, "class")) {
 				g_SpawningObjects[param1].SetClass(g_SpawningObjects[param1].IsSurvivor() ? "prop_dynamic_override" : "info_l4d1_survivor_spawn");
 				PrintToClient(param1, "%T", "object type changed", param1, g_SpawningObjects[param1].IsSurvivor() ? "Survivor" : "Prop");
@@ -408,6 +413,11 @@ public int MenuHandler_SpawnPropAngles(Menu menu, MenuAction action, int param1,
 		case MenuAction_Select: {
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			if (g_State.status != STATUS_PREPARING) { 
+				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
+				return 0;
+			}
 
 			float angles[3];
 			g_SpawningObjects[param1].GetAngles(angles);
@@ -493,6 +503,12 @@ public int MenuHandler_SpawnPropModel(Menu menu, MenuAction action, int param1, 
 		case MenuAction_Select: {
 			char sInfo[PLATFORM_MAX_PATH];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			if (g_State.status != STATUS_PREPARING) { 
+				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
+				return 0;
+			}
+
 			g_SpawningObjects[param1].SetModel(sInfo);
 			OpenSpawnPropModelMenu(param1);
 		}
@@ -544,6 +560,12 @@ public int MenuHandler_SpawnPropSkin(Menu menu, MenuAction action, int param1, i
 		case MenuAction_Select: {
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			if (g_State.status != STATUS_PREPARING) { 
+				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
+				return 0;
+			}
+			
 			g_SpawningObjects[param1].SetSkin(StringToInt(sInfo));
 			OpenSpawnPropSkinMenu(param1);
 		}

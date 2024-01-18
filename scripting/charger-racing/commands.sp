@@ -165,6 +165,11 @@ public Action Command_ReloadTracks(int client, int args) {
 		return Plugin_Continue;
 	}
 
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
+	}
+
 	ParseTracks(g_TracksPath);
 	ReplyToClient(client, "%T", "reply reloaded tracks", client, g_TracksPath);
 
@@ -189,6 +194,11 @@ public Action Command_CreateTrack(int client, int args) {
 
 	if (client < 1) {
 		ReplyToClient(client, "%T", "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
 		return Plugin_Handled;
 	}
 
@@ -243,6 +253,11 @@ public Action Command_EditTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
+	}
+
 	if (args > 0) {
 		char search[MAX_NAME_LENGTH];
 		GetCmdArgString(search, sizeof(search));
@@ -278,6 +293,11 @@ public Action Command_SetTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
+	}
+
 	if (args > 0) {
 		char sTrack[16];
 		GetCmdArg(1, sTrack, sizeof(sTrack));
@@ -299,6 +319,11 @@ public Action Command_SetTrack(int client, int args) {
 public Action Command_StartRace(int client, int args) {
 	if (!IsModeEnabled()) {
 		return Plugin_Continue;
+	}
+
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
 	}
 
 	g_State.StartRace();
@@ -332,6 +357,11 @@ public Action Command_SetMode(int client, int args) {
 
 	if (client < 1) {
 		ReplyToClient(client, "%T", "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
 		return Plugin_Handled;
 	}
 
@@ -407,6 +437,11 @@ public Action Command_SpawnProp(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
+	}
+
 	if (args == 0) {
 		float origin[3];
 		GetClientCrosshairOrigin(client, origin);
@@ -437,6 +472,11 @@ public Action Command_SpawnBot(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
+		return Plugin_Handled;
+	}
+
 	if (args == 0) {
 		float origin[3];
 		GetClientCrosshairOrigin(client, origin);
@@ -464,6 +504,11 @@ public Action Command_Delete(int client, int args) {
 
 	if (client < 1) {
 		ReplyToClient(client, "%T", "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	if (g_State.status != STATUS_PREPARING) { 
+		ReplyToClient(client, "%T", "must be in preparation phase", client);
 		return Plugin_Handled;
 	}
 
