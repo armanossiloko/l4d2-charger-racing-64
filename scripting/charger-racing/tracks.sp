@@ -24,6 +24,8 @@ enum struct Track {
 		this.difficulty = difficulty;
 	}
 
+	/////////////////////////
+	// Nodes
 	void AddNode(float origin[3], int colors[4]) {
 		this.nodes.PushArray(origin, sizeof(origin));
 		this.colors.PushArray(colors, sizeof(colors));
@@ -72,6 +74,7 @@ enum struct Track {
 	void Delete() {
 		this.name[0] = '\0';
 		this.difficulty = DIFFICULTY_EASY;
+
 		delete this.nodes;
 		delete this.colors;
 	}
@@ -158,6 +161,7 @@ void SaveTracks(const char[] file) {
 		}
 
 		kv.GoBack();
+		kv.GoBack();
 	}
 
 	kv.Rewind();
@@ -208,7 +212,7 @@ void IsNearNode(int client, int index) {
 		}
 
 		//Update their points and tell them how many they missed.
-		g_Player[client].AddPoints(points);
+		g_Player[client].AddPoints(total);
 		PrintToClient(client, "%T", "points lost for skipping nodes", client, total, missed);
 	}
 
@@ -228,7 +232,7 @@ void IsNearNode(int client, int index) {
 
 		//Give the points and update the hud.
 		g_Player[client].AddPoints(points);
-		PrintToClient(client, "%T", "points gained for reaching node", client, index, points);
+		PrintToClient(client, "%T", "points gained for reaching node", client, index, points, g_Player[client].points);
 
 		//Update their current node.
 		g_Player[client].currentnode = index;
@@ -241,7 +245,6 @@ void IsNearFinish(int client) {
 	}
 
 	g_Player[client].finished = true;
-	PrintToClients("%t", "finished the race", client);
 
 	int points = g_Points.Get(g_State.mode, "finished");
 
@@ -255,7 +258,7 @@ void IsNearFinish(int client) {
 	char sTime[32];
 	FormatSeconds(g_Player[client].cache_time, sTime, sizeof(sTime), "%M:%S", true);
 
-	PrintToClient(client, "%T", "time and score", client, sTime, g_Player[client].cache_points);
+	PrintToClients("%t", "finished the race", client, sTime, g_Player[client].cache_points);
 
 	if (convar_Death_On_Finish.BoolValue) {
 		ForcePlayerSuicide(client);
@@ -276,11 +279,12 @@ void IsNearFinish(int client) {
 					}
 					
 					g_Player[winner].AddPoints(points);
+					g_Player[winner].Cache();
 
 					g_Player[winner].stats.wins++;
 					IncrementStat(winner, "wins");
 					
-					PrintToClients("%t", "winner for player", winner, g_Player[winner].points);
+					PrintToClients("%t", "winner for player", winner, g_Player[winner].cache_points);
 
 					for (int i = 1; i <= MaxClients; i++) {
 						if (IsClientAuthorized(i) && winner != i) {
@@ -315,7 +319,9 @@ void IsNearFinish(int client) {
 						}
 
 						g_Player[player].AddPoints(temp);
-						total += g_Player[player].points;
+						g_Player[player].Cache();
+
+						total += g_Player[player].cache_points;
 
 						g_Player[player].stats.wins++;
 						IncrementStat(player, "wins");
@@ -335,9 +341,10 @@ void IsNearFinish(int client) {
 
 		g_State.Finish();
 		g_API.Call_OnEndRace();
+
 	} else {
-		if (g_State.mode == MODE_SINGLES || g_State.mode == MODE_TEAMS) {
-			g_State.PopQueue(true);
+		if (g_State.mode == MODE_SINGLES || (g_State.mode == MODE_TEAMS && IsTeamFinished((g_State.group - 1)))) {
+			g_State.PopQueue(true, 6);
 		}
 	}
 }
@@ -360,8 +367,6 @@ void OpenCreateTrackMenu(int client) {
 	menu.AddItem("difficulty", "Difficulty: Easy");
 	menu.AddItem("add", "Add Node");
 	menu.AddItem("total", "--- (Total Nodes: 0)");
-	//menu.AddItem("prop", "Add a Prop");
-	//menu.AddItem("bot", "Add a Bot");
 	menu.AddItem("save", "Save Track");
 
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -417,7 +422,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				g_CreatingTrack[param1].AddNode(origin, color);
 
 				OpenAddNodeMenu(param1, Action_Create);
-				return 0;
+				return 0;				
 			} else if (StrEqual(sInfo, "save")) {
 				if (g_CreatingTrack[param1].GetTotalNodes() >= 2 && strlen(g_CreatingTrack[param1].name) > 0) {
 					SaveTrack(param1);
@@ -798,8 +803,6 @@ void OpenTrackEditorMenu(int client, int id) {
 	menu.AddItem("name", "Name: N/A");
 	menu.AddItem("difficulty", "Difficulty: Easy");
 	menu.AddItem("nodes", "Manage Nodes");
-	//menu.AddItem("prop", "Spawn a Prop");
-	//menu.AddItem("bot", "Spawn a Bot");
 
 	PushMenuInt(menu, "id", id);
 
@@ -1028,7 +1031,6 @@ bool SetTrack(int id, bool verbose = true) {
 		}
 	}
 
-	ParseObjects(g_TracksPath, g_State.track);
 	CreateTrackEnts();
 	
 	return true;

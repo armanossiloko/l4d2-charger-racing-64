@@ -35,6 +35,7 @@ enum struct Player {
 	int cache_points;	//Cached points for the player stored via cache.
 	float cache_time;	//Cached time for the player stored via cache.
 	bool ready;			//Whether the player is ready or not for the next match.
+	bool racing;		//Whether the player is actively racing or not.
 
 	void Init(int client) {
 		this.client = client;
@@ -52,6 +53,7 @@ enum struct Player {
 		this.cache_points = 0;
 		this.cache_time = 0.0;
 		this.ready = false;
+		this.racing = false;
 	}
 
 	void SetPoints(int points) {
@@ -113,8 +115,8 @@ enum struct Player {
 
 				char sTime[64];
 				for (int i = 0; i < total; i++) {
-					FormatSeconds((g_Player[i].cache_time > 0) ? g_Player[i].cache_time : g_Player[i].GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], sTime);
+					FormatSeconds((this.cache_time > 0) ? this.cache_time : this.GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], (g_Player[clients[i]].racing || g_Player[clients[i]].finished) ? sTime : " (00:00)");
 				}
 			}
 
@@ -124,22 +126,22 @@ enum struct Player {
 
 				char sTime[64];
 				for (int i = 0; i < total; i++) {
-					FormatSeconds((g_Player[i].cache_time > 0) ? g_Player[i].cache_time : g_Player[i].GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], sTime);
+					FormatSeconds((this.cache_time > 0) ? this.cache_time : this.GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], (g_Player[clients[i]].racing || g_Player[clients[i]].finished) ? sTime : " (00:00)");
 				}
 			}
 
 			case MODE_TEAMS: {
 				for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
 					int score = GetGroupScore(i);
-					FormatEx(sBuffer, sizeof(sBuffer), "Team: #%i (%i)\n", (i + 1), score);
+					Format(sBuffer, sizeof(sBuffer), "%sTeam: #%i (%i)\n", sBuffer, (i + 1), score);
 				}
 			}
 
 			case MODE_GROUPTEAMS: {
 				for (int i = 0; i < g_Groups.GetTotalGroups(); i++) {
 					int score = GetGroupScore(i);
-					FormatEx(sBuffer, sizeof(sBuffer), "Team: #%i (%i)\n", (i + 1), score);
+					Format(sBuffer, sizeof(sBuffer), "%sTeam: #%i (%i)\n", sBuffer, (i + 1), score);
 				}
 			}
 		}
@@ -149,7 +151,7 @@ enum struct Player {
 		Panel panel = new Panel();
 		char sTime[64];
 		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", true);
-		char sTitle[256]; FormatEx(sTitle, sizeof(sTitle), "Leaderboard (Points: %i) (%s)", this.points, sTime);
+		char sTitle[256]; FormatEx(sTitle, sizeof(sTitle), "Leaderboard (Points: %i) (%s)", (g_Player[this.client].cache_points > 0) ? g_Player[this.client].cache_points : g_Player[this.client].points, sTime);
 		panel.SetTitle(sTitle);
 		panel.DrawText("----------------");
 		if (g_State.status == STATUS_PREPARING) {
@@ -214,5 +216,6 @@ enum struct Player {
 		this.cache_points = 0;
 		this.cache_time = 0.0;
 		this.ready = false;
+		this.racing = false;
 	}
 }

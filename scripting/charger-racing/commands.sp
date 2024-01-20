@@ -30,7 +30,14 @@ public Action Command_Hud(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	g_Player[client].hud = !g_Player[client].hud;
+	if (args > 0) {
+		char arg[16];
+		GetCmdArg(1, arg, sizeof(arg));
+		g_Player[client].hud = view_as<bool>(StringToInt(arg));
+	} else {
+		g_Player[client].hud = !g_Player[client].hud;
+	}
+
 	PrintToClient(client, "%T%T", "hud status", client, (g_Player[client].hud ? "hud enabled" : "hud disabled"), client);
 
 	if (AreClientCookiesCached(client)) {
@@ -403,158 +410,6 @@ public Action Command_SetMode(int client, int args) {
 	return Plugin_Handled;
 }
 
-public Action Command_SpawnSurvivor(int client, int args) {
-	if (!IsModeEnabled()) {
-		return Plugin_Continue;
-	}
-
-	if (client < 1) {
-		ReplyToClient(client, "%T", "Command is in-game only", client);
-		return Plugin_Handled;
-	}
-
-	int survivor = GetCmdArgInt(1);
-
-	float origin[3];
-	GetClientCrosshairOrigin(client, origin, true, 35.0);
-
-	if (SpawnSurvivor(origin, NULL_VECTOR, survivor) != -1) {
-		PrintToClient(client, "%T", "survivor bot created", client);
-	} else {
-		PrintToClient(client, "%T", "survivor bot failed", client);
-	}
-
-	return Plugin_Handled;
-}
-
-public Action Command_SpawnProp(int client, int args) {
-	if (!IsModeEnabled()) {
-		return Plugin_Continue;
-	}
-
-	if (client < 1) {
-		ReplyToClient(client, "%T", "Command is in-game only", client);
-		return Plugin_Handled;
-	}
-
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
-		return Plugin_Handled;
-	}
-
-	if (args == 0) {
-		float origin[3];
-		GetClientCrosshairOrigin(client, origin);
-		float angles[3];
-		g_SpawningObjects[client].Set("prop_dynamic_override", origin, angles, DEFAULT_OBJECT, 0);
-		g_SpawningObjects[client].Spawn();
-		OpenSpawnPropMenu(client);
-		return Plugin_Handled;
-	}
-
-	float origin[3];
-	GetClientCrosshairOrigin(client, origin);
-	float angles[3];
-	g_SpawningObjects[client].Set("prop_dynamic_override", origin, angles, DEFAULT_OBJECT, 0);
-	g_SpawningObjects[client].Spawn();
-	OpenSpawnPropMenu(client);
-
-	return Plugin_Handled;
-}
-
-public Action Command_SpawnBot(int client, int args) {
-	if (!IsModeEnabled()) {
-		return Plugin_Continue;
-	}
-
-	if (client < 1) {
-		ReplyToClient(client, "%T", "Command is in-game only", client);
-		return Plugin_Handled;
-	}
-
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
-		return Plugin_Handled;
-	}
-
-	if (args == 0) {
-		float origin[3];
-		GetClientCrosshairOrigin(client, origin);
-		float angles[3];
-		g_SpawningObjects[client].Set("info_l4d1_survivor_spawn", origin, angles, DEFAULT_OBJECT, 0);
-		g_SpawningObjects[client].Spawn();
-		OpenSpawnPropMenu(client);
-		return Plugin_Handled;
-	}
-
-	float origin[3];
-	GetClientCrosshairOrigin(client, origin);
-	float angles[3];
-	g_SpawningObjects[client].Set("info_l4d1_survivor_spawn", origin, angles, DEFAULT_OBJECT, 0);
-	g_SpawningObjects[client].Spawn();
-	OpenSpawnPropMenu(client);
-
-	return Plugin_Handled;
-}
-
-public Action Command_Delete(int client, int args) {
-	if (!IsModeEnabled()) {
-		return Plugin_Continue;
-	}
-
-	if (client < 1) {
-		ReplyToClient(client, "%T", "Command is in-game only", client);
-		return Plugin_Handled;
-	}
-
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
-		return Plugin_Handled;
-	}
-
-	if (args == 0) {
-		int target = GetClientAimTarget(client, false);
-
-		if (!IsValidEntity(target)) {
-			ReplyToClient(client, "%T", "reply not aiming at valid entity", client);
-			return Plugin_Handled;
-		}
-
-		int obj = GetEntityObjectIndex(target);
-
-		if (obj < 0) {
-			ReplyToClient(client, "%T", "reply not aiming at valid object", client);
-			return Plugin_Handled;
-		}
-
-		g_Objects[obj].Delete();
-		g_Objects[obj].Remove(g_TracksPath, g_Tracks[g_State.track].name, obj);
-		ReplyToClient(client, "%T", "reply object deleted", client);
-
-		return Plugin_Handled;
-	}
-
-	int target = GetClientAimTarget(client, false);
-
-	if (!IsValidEntity(target)) {
-		ReplyToClient(client, "%T", "reply not aiming at valid entity", client);
-		return Plugin_Handled;
-	}
-
-	int obj = GetEntityObjectIndex(target);
-
-	if (obj < 0) {
-		ReplyToClient(client, "%T", "reply not aiming at valid object", client);
-		return Plugin_Handled;
-	}
-
-	g_Objects[obj].Delete();
-	g_Objects[obj].Remove(g_TracksPath, g_Tracks[g_State.track].name, obj);
-	ReplyToClient(client, "%T", "reply object deleted", client);
-
-	return Plugin_Handled;
-}
-
 public Action Command_Pause(int client, int args) {
 	if (!IsModeEnabled()) {
 		return Plugin_Continue;
@@ -616,7 +471,7 @@ public Action Command_Groups(int client, int args) {
 		g_Groups.GetGroupMembers(i, players);
 		
 		for (int x = 0; x < MaxClients; x++) {
-			PrintToServer("  - Player %i: %i", x, players[x]);
+			PrintToServer("  - Player %i: %i %s", x, players[x], g_Player[players[x]].finished ? "finished" : "");
 		}
 	}
 	PrintToServer("===========================================");
@@ -641,6 +496,10 @@ public Action Command_Ready(int client, int args) {
 
 	g_Player[client].ready = !g_Player[client].ready;
 	PrintToClient(client, "%T", "ready toggle", client, (g_Player[client].ready ? "Enabled" : "Disabled"));
+
+	for (int i = 1; i <= MaxClients; i++) {
+		g_Player[i].ready = true;
+	}
 
 	return Plugin_Handled;
 }

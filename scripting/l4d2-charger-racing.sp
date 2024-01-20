@@ -22,7 +22,6 @@
 #define DEBUG
 
 #define MAX_TRACKS 64 	//The total tracks allowed per map.
-#define MAX_OBJECTS 128 //The total objects allowed per track and difficulty.
 #define MAX_COMMANDS 64 //The total commands in the plugin.
 #define NO_TRACK -1 	//This is the corresponding index for data to know that this track either doesn't exist, is invalid, or is not set.
 #define NO_NODE -1 		//This is the corresponding index for data to know that this node either doesn't exist, is invalid, or is not set.
@@ -85,13 +84,6 @@ Points g_Points;
 Group g_Groups;
 Vote g_Vote;
 
-Object g_Objects[MAX_OBJECTS + 1];
-int g_TotalObjects;
-Object g_SpawningObjects[MAXPLAYERS + 1];
-
-ObjModel g_Model[MAX_MODELS + 1];
-int g_TotalModels;
-
 Command g_Command[MAX_COMMANDS + 1];
 int g_TotalCommands;
 
@@ -117,6 +109,8 @@ Cookies g_Cookies;
 
 ArrayList g_BeamEnts;
 
+bool added[MAXPLAYERS + 1];
+
 //Sub-Plugins
 #include "charger-racing/adminmenu.sp"
 #include "charger-racing/api.sp"
@@ -127,7 +121,6 @@ ArrayList g_BeamEnts;
 #include "charger-racing/gamedata.sp"
 #include "charger-racing/gamestate.sp"
 #include "charger-racing/groups.sp"
-#include "charger-racing/objects.sp"
 #include "charger-racing/players.sp"
 #include "charger-racing/points.sp"
 #include "charger-racing/statistics.sp"
@@ -234,10 +227,6 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_mode", Command_SetMode, ADMFLAG_ROOT, "Sets the mode manually.");
 	RegAdminCmd2("sm_gamemode", Command_SetMode, ADMFLAG_ROOT, "Sets the mode manually.");
 	RegAdminCmd2("sm_setmode", Command_SetMode, ADMFLAG_ROOT, "Sets the mode manually.");
-	RegAdminCmd2("sm_survivor", Command_SpawnSurvivor, ADMFLAG_ROOT, "Spawns a survivor where you're looking.");
-	RegAdminCmd2("sm_spawnprop", Command_SpawnProp, ADMFLAG_ROOT, "Spawns a specific prop at the location you're looking at.");
-	RegAdminCmd2("sm_spawnbot", Command_SpawnBot, ADMFLAG_ROOT, "Spawns a specific bot at the location you're looking at.");
-	RegAdminCmd2("sm_delete", Command_Delete, ADMFLAG_ROOT, "Delete an object from the track.");
 	RegAdminCmd2("sm_pause", Command_Pause, ADMFLAG_ROOT, "Pauses and resumes the timer.");
 
 	//Debugging Commands
@@ -304,17 +293,9 @@ public void OnCreateTable(Database db, DBResultSet results, const char[] error, 
 }
 
 public void OnPluginEnd() {
-	for (int i = 0; i < g_TotalObjects; i++) {
-		g_Objects[i].Delete();
-	}
-
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
-		}
-
-		if (g_SpawningObjects[i].entity > 0 && IsValidEntity(g_SpawningObjects[i].entity)) {
-			RemoveEntity(g_SpawningObjects[i].entity);
 		}
 	}
 
@@ -345,9 +326,6 @@ public void OnConfigsExecuted() {
 
 	FormatEx(sPath, sizeof(sPath), "%spoints.cfg", g_ConfigsFolder);
 	ParsePoints(sPath);
-
-	FormatEx(sPath, sizeof(sPath), "%smodels.cfg", g_ConfigsFolder);
-	ParseModels(sPath);
 
 	Format(g_TracksPath, sizeof(g_TracksPath), "%stracks/%s.cfg", g_DataFolder, g_CurrentMap);
 	ParseTracks(g_TracksPath);
@@ -766,9 +744,9 @@ public Action Timer_Tick(Handle timer) {
 					PrintToClients("%t", "race times up print");
 					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
-					EndRace();
+					EndRace(1);
 				} else {
-					g_State.PopQueue(true);
+					g_State.PopQueue(true, 1);
 				}
 			}
 
@@ -777,9 +755,9 @@ public Action Timer_Tick(Handle timer) {
 					PrintToClients("%t", "race times up print");
 					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
-					EndRace();
+					EndRace(2);
 				} else {
-					g_State.PopQueue(true);
+					g_State.PopQueue(true, 2);
 				}
 			}
 		}
@@ -856,9 +834,9 @@ public void OnClientDisconnect(int client) {
 	//Player disconnected from the game while racing so check if we need to pop queue or end the race since they're the last one.
 	if (IsClientInGame(client) && IsPlayerAlive(client) && !g_Player[client].playing && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
 		if (AllPlayersFinished()) {
-			EndRace();
+			EndRace(3);
 		} else {
-			g_State.PopQueue(true);
+			g_State.PopQueue(true, 3);
 		}
 	}
 
@@ -952,6 +930,7 @@ public void Frame_DelayFinish(any data) {
 		}
 		
 		g_API.Call_OnPlayerFinish(i);
+		g_Player[i].racing = false;
 	}
 }
 

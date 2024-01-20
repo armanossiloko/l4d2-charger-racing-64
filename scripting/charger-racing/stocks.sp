@@ -139,7 +139,7 @@ bool StringToColor(const char[] explode, int buffer[4], int defaultvalues[4] = {
 	return true;
 }
 
-bool GetClientCrosshairOrigin(int client, float pOrigin[3], bool filter_players = true, float distance = 5.0)
+stock bool GetClientCrosshairOrigin(int client, float pOrigin[3], bool filter_players = true, float distance = 5.0)
 {
 	if (client == 0 || client > MaxClients || !IsClientInGame(client))
 		return false;
@@ -323,7 +323,7 @@ bool StringToBool(const char[] str) {
 	return view_as<bool>(StringToInt(str));
 }
 
-void GetCharacterName(int index, char[] buffer, int size) {
+stock void GetCharacterName(int index, char[] buffer, int size) {
 	switch (index) {
 		case 0:		// Nick
 		{
@@ -422,7 +422,7 @@ int FindAvailablePlayer() {
 	int total;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || IsFakeClient(i) || !IsPlayerAlive(i) || HasGroup(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+		if (!IsClientInGame(i) || IsFakeClient(i) || HasGroup(i) || !g_Player[i].ready || added[i]) {
 			continue;
 		}
 
@@ -450,7 +450,7 @@ int GetTotalPlayers() {
 	int amount;
 
 	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+		if (!IsClientInGame(i) || IsFakeClient(i)) {
 			continue;
 		}
 
@@ -516,7 +516,7 @@ int GetWinnerGroup() {
 				continue;
 			}
 
-			points += g_Player[i].points;
+			points += g_Player[i].cache_points;
 		}
 
 		if (winner == 0) {
@@ -597,7 +597,11 @@ int GetGroupScore(int group) {
 			continue;
 		}
 
-		score += g_Player[client].points;
+		if (g_Player[client].cache_points > 0) {
+			score += g_Player[client].cache_points;
+		} else {
+			score += g_Player[client].points;
+		}
 	}
 
 	return score;
@@ -650,12 +654,6 @@ public int OnSortScores(int elem1, int elem2, const int[] array, Handle hndl) {
 }
 
 void KickBots() {
-	for (int i = 0; i < g_TotalObjects; i++) {
-		if (g_Objects[i].IsSurvivor()) {
-			g_Objects[i].Delete();
-		}
-	}
-
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor) {
 			KickClient(i);

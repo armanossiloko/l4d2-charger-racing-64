@@ -32,7 +32,6 @@ enum struct GameState {
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
 		KickBots();
-		SpawnObjects();
 		CreateTrackEnts();
 
 		for (int i = 1; i <= MaxClients; i++) {
@@ -83,7 +82,7 @@ enum struct GameState {
 			g_API.Call_OnPlayerStart(i);
 		}
 
-		g_State.PopQueue(true);
+		g_State.PopQueue(true, 5);
 		g_API.Call_OnStartRace();
 	}
 
@@ -95,7 +94,6 @@ enum struct GameState {
 		this.timer = convar_Racing_Timer.FloatValue;
 
 		KickBots();
-		SpawnObjects();
 		CreateTrackEnts();
 	}
 
@@ -113,6 +111,12 @@ enum struct GameState {
 
 			g_Player[i].stats.races++;
 			IncrementStat(i, "races");
+
+			g_Player[i].points = 0;
+			g_Player[i].cache_points = 0;
+			g_Player[i].time = GetGameTime();
+			g_Player[i].cache_time = 0.0;
+			g_Player[i].racing = true;
 		}
 	}
 
@@ -158,7 +162,7 @@ enum struct GameState {
 		switch (this.mode) {
 			case MODE_SINGLES, MODE_GROUPS: {
 				for (int i = 1; i <= MaxClients; i++) {
-					if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
+					if (!IsClientInGame(i) || IsFakeClient(i) || !g_Player[i].ready) {
 						continue;
 					}
 
@@ -169,20 +173,31 @@ enum struct GameState {
 			case MODE_TEAMS, MODE_GROUPTEAMS: {
 				int totalplayers = GetTotalPlayers();
 				float ratio = convar_Ratio.FloatValue;
-				int players = RoundToCeil(totalplayers * ratio);
-				int teams = totalplayers / players;
+				int teams = 2; // Set the number of teams to 2
+				int playersInFirstTeam = RoundToCeil(float(totalplayers) * ratio); // Calculate the number of players in the first team
+				int playersInSecondTeam = totalplayers - playersInFirstTeam; // Calculate the number of players in the second team
 
-				int[] clients = new int[MaxClients];
-				int total;
+				for (int i = 1; i <= MaxClients; i++) {
+					added[i] = false;
+				}
 
 				for (int i = 0; i < teams; i++) {
-					total = 0;
+					int[] clients = new int[MaxClients];
+					int total;
 
-					for (int x = 0; x < players; x++) {
-						if ((clients[total] = FindAvailablePlayer()) < 1) {
-							break;
+					int playersInThisTeam = (i == 0) ? playersInFirstTeam : playersInSecondTeam;
+					int client;
+
+					for (int x = 0; x < playersInThisTeam; x++) {
+						client = FindAvailablePlayer();
+
+						if (client < 1) {
+							continue;
 						}
 
+						added[client] = true;
+
+						clients[total] = client;
 						PrintToClient(clients[total], "%T", "added to group queue", clients[total], i);
 						total++
 					}
@@ -193,7 +208,8 @@ enum struct GameState {
 		}
 	}
 
-	void PopQueue(bool ready) {		
+	void PopQueue(bool ready, int debug2) {
+		PrintToServer("-------------------\n PopQueue: %i \n-------------------", debug2);		
 		for (int i = 1; i <= MaxClients; i++) {
 			if (!IsClientInGame(i)) {
 				continue;
@@ -247,7 +263,7 @@ enum struct GameState {
 
 						L4D_ChangeClientTeam(client, L4DTeam_Infected);
 						L4D_RespawnPlayer(client);
-						L4D_SetClass(i, view_as<int>(L4D2ZombieClass_Charger));
+						L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 					}
 				}
 			}
@@ -467,7 +483,8 @@ bool SetStatus(Status status) {
 	return false;
 }
 
-void EndRace() {
+void EndRace(int debug2) {
+	PrintToServer("-------------------\n EndRace: %i \n-------------------", debug2);
 	PrintToClients("%t", "race finished print");
 
 	char sTime[64];

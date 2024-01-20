@@ -30,10 +30,6 @@ public void OnAdminMenuReady(Handle aTopMenu) {
 	AddToTopMenu(g_AdminMenu, "sm_startrace", TopMenuObject_Item, AdminMenu_StartRace, g_AdminMenuObj, "sm_startrace", ADMFLAG_ROOT);
 	AddToTopMenu(g_AdminMenu, "sm_endrace", TopMenuObject_Item, AdminMenu_EndRace, g_AdminMenuObj, "sm_endrace", ADMFLAG_ROOT);
 	AddToTopMenu(g_AdminMenu, "sm_setmode", TopMenuObject_Item, AdminMenu_SetMode, g_AdminMenuObj, "sm_setmode", ADMFLAG_ROOT);
-	AddToTopMenu(g_AdminMenu, "sm_survivor", TopMenuObject_Item, AdminMenu_Survivor, g_AdminMenuObj, "sm_survivor", ADMFLAG_ROOT);
-	AddToTopMenu(g_AdminMenu, "sm_spawnprop", TopMenuObject_Item, AdminMenu_SpawnProp, g_AdminMenuObj, "sm_spawnprop", ADMFLAG_ROOT);
-	AddToTopMenu(g_AdminMenu, "sm_spawnbot", TopMenuObject_Item, AdminMenu_SpawnBot, g_AdminMenuObj, "sm_spawnbot", ADMFLAG_ROOT);
-	AddToTopMenu(g_AdminMenu, "sm_delete", TopMenuObject_Item, AdminMenu_Delete, g_AdminMenuObj, "sm_delete", ADMFLAG_ROOT);
 	AddToTopMenu(g_AdminMenu, "sm_pause", TopMenuObject_Item, AdminMenu_Pause, g_AdminMenuObj, "sm_pause", ADMFLAG_ROOT);
 	
 	AddToTopMenu(g_AdminMenu, "sm_votetrack", TopMenuObject_Item, AdminMenu_VoteTrack, g_AdminMenuObj, "sm_votetrack", ADMFLAG_ROOT);
@@ -78,17 +74,6 @@ public void AdminMenu_EndRace(TopMenu topmenu, TopMenuAction action, TopMenuObje
 	}
 }
 
-public void AdminMenu_Survivor(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
-	switch (action) {
-		case TopMenuAction_DisplayOption: {
-			strcopy(buffer, maxlength, "Spawn a Fake Survivor");
-		}
-		case TopMenuAction_SelectOption: {
-			FakeClientCommand(param, "sm_survivor");
-		}
-	}
-}
-
 public void AdminMenu_SetMode(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
 	switch (action) {
 		case TopMenuAction_DisplayOption: {
@@ -96,39 +81,6 @@ public void AdminMenu_SetMode(TopMenu topmenu, TopMenuAction action, TopMenuObje
 		}
 		case TopMenuAction_SelectOption: {
 			FakeClientCommand(param, "sm_setmode");
-		}
-	}
-}
-
-public void AdminMenu_SpawnProp(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
-	switch (action) {
-		case TopMenuAction_DisplayOption: {
-			strcopy(buffer, maxlength, "Spawn a Prop");
-		}
-		case TopMenuAction_SelectOption: {
-			FakeClientCommand(param, "sm_spawnprop");
-		}
-	}
-}
-
-public void AdminMenu_SpawnBot(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
-	switch (action) {
-		case TopMenuAction_DisplayOption: {
-			strcopy(buffer, maxlength, "Spawn a Bot");
-		}
-		case TopMenuAction_SelectOption: {
-			FakeClientCommand(param, "sm_spawnbot");
-		}
-	}
-}
-
-public void AdminMenu_Delete(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
-	switch (action) {
-		case TopMenuAction_DisplayOption: {
-			strcopy(buffer, maxlength, "Delete a Prop/Bot");
-		}
-		case TopMenuAction_SelectOption: {
-			FakeClientCommand(param, "sm_delete");
 		}
 	}
 }

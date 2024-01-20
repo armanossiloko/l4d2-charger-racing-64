@@ -24,12 +24,16 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 		return;
 	}
 
+	if (g_State.status == STATUS_PREPARING) {
+		PrintToClient(client, "%T", "type ready", client);
+	}
+
 	if (!IsFakeClient(client)) {
 		if (g_MapStarted) {
 			g_MapStarted = false;
 
 			for (int i = 1; i <= MaxClients; i++) {
-				if (IsClientInGame(i) && IsFakeClient(i) && GetEntityObjectIndex(i) == -1) {
+				if (IsClientInGame(i) && IsFakeClient(i)) {
 					KickClient(i);
 				}
 			}
@@ -75,9 +79,9 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 		PrintToClients("%t", "finished the race", client);
 
 		if (AllPlayersFinished()) {
-			EndRace();
+			EndRace(4);
 		} else {
-			g_State.PopQueue(true);
+			g_State.PopQueue(true, 4);
 		}
 	}
 }

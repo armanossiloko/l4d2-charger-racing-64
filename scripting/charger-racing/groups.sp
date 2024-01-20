@@ -17,9 +17,9 @@ enum struct Group {
 
 	bool IsInGroup(int group, int client) {
 		int[] players = new int[MaxClients];
-		int player = this.groups.GetArray(group, players);
+		this.groups.GetArray(group, players);
 
-		for (int i = 0; i < player; i++) {
+		for (int i = 0; i < MaxClients; i++) {
 			if (players[i] == client) {
 				return true;
 			}
@@ -101,4 +101,24 @@ bool HasGroup(int client) {
 	}
 
 	return false;
+}
+
+bool IsTeamFinished(int group) {
+	PrintToChatAll("IsTeamFinished = %i", group);
+
+	int[] players = new int[MaxClients];
+	g_Groups.GetGroupMembers(group, players);
+
+	int client;
+	for (int i = 0; i < MaxClients; i++) {
+		if ((client = players[i]) < 1) {
+			continue;
+		}
+
+		if (!g_Player[client].finished) {
+			return false;
+		}
+	}
+
+	return true;
 }
