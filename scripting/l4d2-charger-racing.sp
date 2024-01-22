@@ -25,6 +25,7 @@
 #define MAX_COMMANDS 64 //The total commands in the plugin.
 #define NO_TRACK -1 	//This is the corresponding index for data to know that this track either doesn't exist, is invalid, or is not set.
 #define NO_NODE -1 		//This is the corresponding index for data to know that this node either doesn't exist, is invalid, or is not set.
+#define NO_OBJECT -1 	//This is the corresponding index for data to know that this object either doesn't exist, is invalid, or is not set.
 #define DEFAULT_OBJECT "models/props_fortifications/orange_cone001_clientside.mdl"	//Default model to use for a model object when first created.
 #define MAX_MODELS 256	//Maximum amount of models allowed to be precached.
 
@@ -101,7 +102,9 @@ Track g_CreatingTrack[MAXPLAYERS + 1];
 bool g_SettingName[MAXPLAYERS + 1];
 int g_EditingTrack[MAXPLAYERS + 1] = {NO_TRACK, ...};
 int g_EditingNode[MAXPLAYERS + 1] = {NO_NODE, ...};
+int g_EditingObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
 int g_NewNode[MAXPLAYERS + 1] = {NO_NODE, ...};
+int g_NewObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
 
 GameDataHandlers g_GameData;
 
@@ -111,7 +114,7 @@ ArrayList g_BeamEnts;
 
 bool added[MAXPLAYERS + 1];
 
-//Sub-Plugins
+//Sub-Files
 #include "charger-racing/adminmenu.sp"
 #include "charger-racing/api.sp"
 #include "charger-racing/commands.sp"
@@ -121,6 +124,8 @@ bool added[MAXPLAYERS + 1];
 #include "charger-racing/gamedata.sp"
 #include "charger-racing/gamestate.sp"
 #include "charger-racing/groups.sp"
+#include "charger-racing/nodes.sp"
+#include "charger-racing/objects.sp"
 #include "charger-racing/players.sp"
 #include "charger-racing/points.sp"
 #include "charger-racing/statistics.sp"
@@ -452,7 +457,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	float cull_distance = convar_Track_Culling.FloatValue;
 
 	//Display the track as tempents to the player who's creating it.
-	if (g_CreatingTrack[client].nodes != null) {
+	if (g_CreatingTrack[client].node_origins != null) {
 		
 		int length = g_CreatingTrack[client].GetTotalNodes();
 		float origin[3]; int color[4];
@@ -555,60 +560,63 @@ public void OnGameFrame() {
 		return;
 	}
 
-	int length = g_Tracks[track].GetTotalNodes();
+	//Track nodes are set and valid to run, tick it.
+	if (g_Tracks[track].ValidNodes()) {
+		int length = g_Tracks[track].GetTotalNodes();
 
-	//There needs to be at least 1 node to bother doing anything.
-	if (length < 1) {
-		return;
-	}
+		//There needs to be at least 1 node to bother doing anything.
+		if (length < 1) {
+			return;
+		}
 
-	float origin[3];
-	for (int i = 0; i < length; i++) {
-		g_Tracks[track].GetNodeOrigin(i, origin);
-		OnNodeTick(i, origin);
-	}
-
-	if (convar_Pathing.BoolValue) {
-		int StartFrame = 0;
-		int FrameRate = 0;
-		float Life = 0.1;
-		float Width = convar_Pathing_Width.FloatValue;
-		//float EndWidth = convar_Pathing_Width.FloatValue;
-		//int FadeLength = 0;
-		float Amplitude = 0.0;
-		int Speed = 0;
-		
-		int color[4];
-		float origin2[3];
-
-		float start_radius = convar_Point_Start_Radius.FloatValue;
-		float end_radius = convar_Point_End_Radius.FloatValue;
-		int start_color[4]; start_color = GetConVarColor(convar_Point_Start_Color);
-		int end_color[4]; end_color = GetConVarColor(convar_Point_End_Color);
-
-		bool render = convar_Pathing_Rendering.IntValue == 0;
-
+		float origin[3];
 		for (int i = 0; i < length; i++) {
 			g_Tracks[track].GetNodeOrigin(i, origin);
+			OnNodeTick(i, origin);
+		}
 
-			//Show the ring for the start and end of the track.
-			if (i == 0) {
-				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, start_color, Speed, 0);
-				TE_SendToAllInRange(origin, RangeType_Visibility);
-			} else if (i == (length - 1)) {
-				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, end_color, Speed, 0);
-				TE_SendToAllInRange(origin, RangeType_Visibility);
-			}
+		if (convar_Pathing.BoolValue) {
+			int StartFrame = 0;
+			int FrameRate = 0;
+			float Life = 0.1;
+			float Width = convar_Pathing_Width.FloatValue;
+			//float EndWidth = convar_Pathing_Width.FloatValue;
+			//int FadeLength = 0;
+			float Amplitude = 0.0;
+			int Speed = 0;
+			
+			int color[4];
+			float origin2[3];
 
-			if ((i + 1) >= length) {
-				continue;
-			}
+			float start_radius = convar_Point_Start_Radius.FloatValue;
+			float end_radius = convar_Point_End_Radius.FloatValue;
+			int start_color[4]; start_color = GetConVarColor(convar_Point_Start_Color);
+			int end_color[4]; end_color = GetConVarColor(convar_Point_End_Color);
 
-			g_Tracks[track].GetNode((i+1), origin2, color);
+			bool render = convar_Pathing_Rendering.IntValue == 0;
 
-			if (render) {
-				//TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
-				//TE_SendToAllInRange(origin, RangeType_Visibility);
+			for (int i = 0; i < length; i++) {
+				g_Tracks[track].GetNodeOrigin(i, origin);
+
+				//Show the ring for the start and end of the track.
+				if (i == 0) {
+					TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, start_color, Speed, 0);
+					TE_SendToAllInRange(origin, RangeType_Visibility);
+				} else if (i == (length - 1)) {
+					TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, end_color, Speed, 0);
+					TE_SendToAllInRange(origin, RangeType_Visibility);
+				}
+
+				if ((i + 1) >= length) {
+					continue;
+				}
+
+				g_Tracks[track].GetNode((i+1), origin2, color);
+
+				if (render) {
+					//TE_SetupBeamPoints(origin, origin2, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength, Amplitude, color, Speed);
+					//TE_SendToAllInRange(origin, RangeType_Visibility);
+				}
 			}
 		}
 	}
@@ -854,6 +862,7 @@ public void OnClientDisconnect_Post(int client) {
 	g_SettingName[client] = false;
 	g_EditingTrack[client] = NO_TRACK;
 	g_EditingNode[client] = NO_NODE;
+	g_EditingObj[client] = NO_OBJECT;
 }
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs) {

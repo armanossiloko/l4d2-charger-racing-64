@@ -3,16 +3,51 @@ enum struct Track {
 	Difficulty difficulty;	//The difficulty of the track, this is just an arbitrary value set when creating or editing the track.
 	
 	//Nodes
-	ArrayList nodes;		//The list of origin points for the track which consists of 3D vectors in order. Index 0 is the start and the last index is the finish line.
-	ArrayList colors;		//The colors that correspond to the beams of the track in corresponding order.
+	ArrayList node_origins;		//The list of origin points for the track which consists of 3D vectors in order. Index 0 is the start and the last index is the finish line.
+	ArrayList node_colors;		//The colors that correspond to the beams of the track in corresponding order.
+
+	//Objects
+	ArrayList object_entity;	//The entities for objects spawned on the track.
+	ArrayList object_origin;	//The origin points for the objects.
+	ArrayList object_angles;	//The angles for the objects.
+	ArrayList object_model;		//The model for the objects.
+	ArrayList object_scale;		//The scale for the objects.
+	ArrayList object_color;		//The color for the objects.
+	ArrayList object_skin;		//The skin for the objects.
 
 	void Init() {
-		this.nodes = new ArrayList(3);
-		this.colors = new ArrayList(4);
+		//Nodes
+		this.node_origins = new ArrayList(3);
+		this.node_colors = new ArrayList(4);
+
+		//Objects
+		this.object_entity = new ArrayList(ByteCountToCells(64));
+		this.object_origin = new ArrayList(3);
+		this.object_angles = new ArrayList(3);
+		this.object_model = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
+		this.object_scale = new ArrayList();
+		this.object_color = new ArrayList(4);
+		this.object_skin = new ArrayList();
+	}
+
+	void Delete() {
+		this.name[0] = '\0';
+		this.difficulty = DIFFICULTY_EASY;
+
+		delete this.node_origins;
+		delete this.node_colors;
+
+		delete this.object_entity;
+		delete this.object_origin;
+		delete this.object_angles;
+		delete this.object_model;
+		delete this.object_scale;
+		delete this.object_color;
+		delete this.object_skin;
 	}
 
 	bool Valid() {
-		if (strlen(this.name) == 0 || this.nodes == null || this.colors == null) {
+		if (strlen(this.name) == 0) {
 			return false;
 		}
 
@@ -26,57 +61,177 @@ enum struct Track {
 
 	/////////////////////////
 	// Nodes
+	bool ValidNodes() {
+		if (this.node_origins == null || this.node_colors == null) {
+			return false;
+		}
+
+		return true;
+	}
+
 	void AddNode(float origin[3], int colors[4]) {
-		this.nodes.PushArray(origin, sizeof(origin));
-		this.colors.PushArray(colors, sizeof(colors));
+		this.node_origins.PushArray(origin, sizeof(origin));
+		this.node_colors.PushArray(colors, sizeof(colors));
 	}
 
 	void SetNode(int index, float origin[3], int colors[4]) {
-		this.nodes.SetArray(index, origin, sizeof(origin));
-		this.colors.SetArray(index, colors, sizeof(colors));
+		this.node_origins.SetArray(index, origin, sizeof(origin));
+		this.node_colors.SetArray(index, colors, sizeof(colors));
 	}
 
 	void SetNodeOrigin(int index, float origin[3]) {
-		this.nodes.SetArray(index, origin, sizeof(origin));
+		this.node_origins.SetArray(index, origin, sizeof(origin));
 	}
 
 	void SetNodeColor(int index, int colors[4]) {
-		this.colors.SetArray(index, colors, sizeof(colors));
+		this.node_colors.SetArray(index, colors, sizeof(colors));
 	}
 
 	int GetTotalNodes() {
-		return this.nodes.Length;
+		return this.node_origins.Length;
 	}
 
 	void GetNode(int index, float origin[3], int colors[4]) {
-		this.nodes.GetArray(index, origin, sizeof(origin));
-		this.colors.GetArray(index, colors, sizeof(colors));
+		this.node_origins.GetArray(index, origin, sizeof(origin));
+		this.node_colors.GetArray(index, colors, sizeof(colors));
 	}
 
 	void GetNodeOrigin(int index, float origin[3]) {
-		this.nodes.GetArray(index, origin, sizeof(origin));
+		this.node_origins.GetArray(index, origin, sizeof(origin));
 	}
 
 	void GetNodeColor(int index, int colors[4]) {
-		this.colors.GetArray(index, colors, sizeof(colors));
+		this.node_colors.GetArray(index, colors, sizeof(colors));
 	}
 
 	void DeleteNode(int index) {
-		this.nodes.Erase(index);
-		this.colors.Erase(index);
+		this.node_origins.Erase(index);
+		this.node_colors.Erase(index);
 	}
 
-	void Clear() {
-		this.nodes.Clear();
-		this.colors.Clear();
+	void ClearNodes() {
+		this.node_origins.Clear();
+		this.node_colors.Clear();
 	}
 
-	void Delete() {
-		this.name[0] = '\0';
-		this.difficulty = DIFFICULTY_EASY;
+	/////////////////////////
+	// Objects
+	bool ValidObjects() {
+		if (this.object_entity == null || this.object_origin == null || this.object_angles == null || this.object_model == null || this.object_scale == null || this.object_color == null || this.object_skin == null) {
+			return false;
+		}
 
-		delete this.nodes;
-		delete this.colors;
+		return true;
+	}
+
+	void AddObject(const char[] entity, float origin[3], float angles[3], const char[] model, float scale, int color[4], int skin) {
+		this.object_entity.PushString(entity);
+		this.object_origin.PushArray(origin, sizeof(origin));
+		this.object_angles.PushArray(angles, sizeof(angles));
+		this.object_model.PushString(model);
+		this.object_scale.Push(scale);
+		this.object_color.PushArray(color, sizeof(color));
+		this.object_skin.Push(skin);
+	}
+
+	void SetObject(int index, const char[] entity, float origin[3], float angles[3], const char[] model, float scale, int color[4], int skin) {
+		this.object_entity.SetString(index, entity);
+		this.object_origin.SetArray(index, origin, sizeof(origin));
+		this.object_angles.SetArray(index, angles, sizeof(angles));
+		this.object_model.SetString(index, model);
+		this.object_scale.Set(index, scale);
+		this.object_color.SetArray(index, color, sizeof(color));
+		this.object_skin.Set(index, skin);
+	}
+
+	void SetObjectEntity(int index, const char[] entity) {
+		this.object_entity.SetString(index, entity);
+	}
+
+	void SetObjectOrigin(int index, float origin[3]) {
+		this.object_origin.SetArray(index, origin, sizeof(origin));
+	}
+
+	void SetObjectAngles(int index, float angles[3]) {
+		this.object_angles.SetArray(index, angles, sizeof(angles));
+	}
+
+	void SetObjectModel(int index, const char[] model) {
+		this.object_model.SetString(index, model);
+	}
+
+	void SetObjectScale(int index, float scale) {
+		this.object_scale.Set(index, scale);
+	}
+
+	void SetObjectColor(int index, int color[4]) {
+		this.object_color.SetArray(index, color, sizeof(color));
+	}
+
+	void SetObjectSkin(int index, int skin) {
+		this.object_skin.Set(index, skin);
+	}
+
+	int GetTotalObjects() {
+		return this.object_entity.Length;
+	}
+
+	void GetObject(int index, char entity[64], float origin[3], float angles[3], char model[PLATFORM_MAX_PATH], float scale, int color[4], int skin) {
+		this.object_entity.GetString(index, entity, sizeof(entity));
+		this.object_origin.GetArray(index, origin, sizeof(origin));
+		this.object_angles.GetArray(index, angles, sizeof(angles));
+		this.object_model.GetString(index, model, sizeof(model));
+		scale = this.object_scale.Get(index);
+		this.object_color.GetArray(index, color, sizeof(color));
+		skin = this.object_skin.Get(index);
+	}
+
+	void GetObjectEntity(int index, char[] entity, int size) {
+		this.object_entity.GetString(index, entity, size);
+	}
+
+	void GetObjectOrigin(int index, float origin[3]) {
+		this.object_origin.GetArray(index, origin, sizeof(origin));
+	}
+
+	void GetObjectAngles(int index, float angles[3]) {
+		this.object_angles.GetArray(index, angles, sizeof(angles));
+	}
+
+	void GetObjectModel(int index, char[] model, int size) {
+		this.object_model.GetString(index, model, size);
+	}
+
+	float GetObjectScale(int index) {
+		return this.object_scale.Get(index);
+	}
+
+	void GetObjectColor(int index, int color[4]) {
+		this.object_color.GetArray(index, color, sizeof(color));
+	}
+
+	int GetObjectSkin(int index) {
+		return this.object_skin.Get(index);
+	}
+
+	void DeleteObject(int index) {
+		this.object_entity.Erase(index);
+		this.object_origin.Erase(index);
+		this.object_angles.Erase(index);
+		this.object_model.Erase(index);
+		this.object_scale.Erase(index);
+		this.object_color.Erase(index);
+		this.object_skin.Erase(index);
+	}
+
+	void ClearObjects() {
+		this.object_entity.Clear();
+		this.object_origin.Clear();
+		this.object_angles.Clear();
+		this.object_model.Clear();
+		this.object_scale.Clear();
+		this.object_color.Clear();
+		this.object_skin.Clear();
 	}
 }
 
@@ -116,6 +271,24 @@ void ParseTracks(const char[] file) {
 				kv.GoBack();
 			}
 
+			if (kv.JumpToKey("track-objects") && kv.GotoFirstSubKey()) {
+				char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
+				do {
+					kv.GetString("entity", entity, sizeof(entity));
+					kv.GetVector("origin", origin);
+					kv.GetVector("angles", angles);
+					kv.GetString("model", model, sizeof(model));
+					scale = kv.GetFloat("scale");
+					kv.GetColor4("color", color);
+					skin = kv.GetNum("skin");
+					
+					g_Tracks[index].AddObject(entity, origin, angles, model, scale, color, skin);
+				} while (kv.GotoNextKey());
+
+				kv.GoBack();
+				kv.GoBack();
+			}
+
 			g_Tracks[index].Set(name, difficulty);
 
 		} while (kv.GotoNextKey());
@@ -143,21 +316,43 @@ void SaveTracks(const char[] file) {
 		kv.JumpToKey(g_Tracks[i].name, true);
 		kv.SetNum("difficulty", view_as<int>(g_Tracks[i].difficulty));
 
-		kv.JumpToKey("track-points", true);
+		if (kv.JumpToKey("track-points", true)) {
+			char sTrack[16]; float origin[3]; int color[4]; char sColor[64];
+			for (int track = 0; track < g_Tracks[i].GetTotalNodes(); track++) {
+				IntToString(track, sTrack, sizeof(sTrack));
+				kv.JumpToKey(sTrack, true);
 
-		char sTrack[16]; float origin[3]; int color[4]; char sColor[64];
-		for (int track = 0; track < g_Tracks[i].GetTotalNodes(); track++) {
-			IntToString(track, sTrack, sizeof(sTrack));
-			kv.JumpToKey(sTrack, true);
+				g_Tracks[i].GetNode(track, origin, color);
 
-			g_Tracks[i].GetNode(track, origin, color);
+				kv.SetVector("origin", origin);
+				//kv.SetColor4("color", color); //Currently broken in Source.
+				FormatEx(sColor, sizeof(sColor), "%i %i %i %i", color[0], color[1], color[2], color[3]);
+				kv.SetString("color", sColor);
 
-			kv.SetVector("origin", origin);
-			//kv.SetColor4("color", color); //Currently broken in Source.
-			FormatEx(sColor, sizeof(sColor), "%i %i %i %i", color[0], color[1], color[2], color[3]);
-			kv.SetString("color", sColor);
+				kv.GoBack();
+			}
+		}
 
-			kv.GoBack();
+		if (kv.JumpToKey("track-objects", true)) {
+			char sObject[16]; char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin; char sColor[64];
+			for (int obj = 0; obj < g_Tracks[i].GetTotalObjects(); obj++) {
+				IntToString(obj, sObject, sizeof(sObject));
+				kv.JumpToKey(sObject, true);
+
+				g_Tracks[i].GetObject(obj, entity, origin, angles, model, scale, color, skin);
+
+				kv.SetString("entity", entity);
+				kv.SetVector("origin", origin);
+				kv.SetVector("angles", angles);
+				kv.SetString("model", model);
+				kv.SetFloat("scale", scale);
+				//kv.SetColor4("color", color); //Currently broken in Source.
+				FormatEx(sColor, sizeof(sColor), "%i %i %i %i", color[0], color[1], color[2], color[3]);
+				kv.SetString("color", sColor);
+				kv.SetNum("skin", skin);
+
+				kv.GoBack();
+			}
 		}
 
 		kv.GoBack();
@@ -169,184 +364,6 @@ void SaveTracks(const char[] file) {
 
 	delete kv;
 	ModeLog("Saving %d tracks to file: %s", g_TotalTracks, file);
-}
-
-void OnNodeTick(int index, float origin[3]) {
-	float radius = convar_Node_Radius.FloatValue;
-
-	float pos[3];
-	for (int i = 1; i <= MaxClients; i++) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || L4D_GetClientTeam(i) != L4DTeam_Infected) {
-			continue;
-		}
-
-		pos = GetOrigin(i);
-
-		if (GetDistance(origin, pos) <= radius) {
-			IsNearNode(i, index);
-		}
-	}
-}
-
-void IsNearNode(int client, int index) {
-	if (g_State.status != STATUS_RACING) {
-		return;
-	}
-
-	//If we're at the last node, we're at the finish line.
-	if (index == g_Tracks[g_State.track].GetTotalNodes() - 1) {
-		IsNearFinish(client);
-		return;
-	}
-
-	//If a player tries to take an unintended shortcut then stop progress.
-	if (convar_Skip_Nodes.BoolValue && g_Player[client].currentnode < (index - 1)) {
-		//Count how many nodes they've missed total.
-		int missed = (index - 1) - g_Player[client].currentnode;
-		int points = g_Points.Get(g_State.mode, "skipping-checkpoint");
-
-		//Deduct points based on each node so if it's 2 points per node and they miss 3 nodes then they lose 6.
-		int total;
-		for (int i = 0; i < missed; i++) {
-			total += points;
-		}
-
-		//Update their points and tell them how many they missed.
-		g_Player[client].AddPoints(total);
-		PrintToClient(client, "%T", "points lost for skipping nodes", client, total, missed);
-	}
-
-	//Calculate a points value based on our average speed then clear the cache so we get a fresh average between nodes.
-	//float average = g_Player[client].GetAverageSpeed();
-	//int points = RoundToCeil(average) / 5;
-
-	if (g_Player[client].currentnode < index) {
-		//Give them points based on reaching the checkpoint and clear their speed calculations.
-		int points = g_Points.Get(g_State.mode, "checkpoint");
-		g_Player[client].speeds.Clear();
-
-		//If we're carrying a survivor, give our points a multiplier.
-		if (L4D2_GetInfectedAttacker(client) != -1) {
-			points *= 1.20;
-		}
-
-		//Give the points and update the hud.
-		g_Player[client].AddPoints(points);
-		PrintToClient(client, "%T", "points gained for reaching node", client, index, points, g_Player[client].points);
-
-		//Update their current node.
-		g_Player[client].currentnode = index;
-	}
-}
-
-void IsNearFinish(int client) {
-	if (g_Player[client].finished) {
-		return;
-	}
-
-	g_Player[client].finished = true;
-
-	int points = g_Points.Get(g_State.mode, "finished");
-
-	if (L4D2_GetInfectedAttacker(client) != -1) {
-		points += g_Points.Get(g_State.mode, "survivor");
-	}
-
-	g_Player[client].AddPoints(points);
-	g_Player[client].Cache();
-
-	char sTime[32];
-	FormatSeconds(g_Player[client].cache_time, sTime, sizeof(sTime), "%M:%S", true);
-
-	PrintToClients("%t", "finished the race", client, sTime, g_Player[client].cache_points);
-
-	if (convar_Death_On_Finish.BoolValue) {
-		ForcePlayerSuicide(client);
-	}
-
-	if (AllPlayersFinished()) {
-		switch (g_State.mode) {
-			case MODE_SINGLES, MODE_GROUPS: {
-				int winner = GetWinnerForSingles();
-
-				if (winner == -1) {
-					PrintToClients("%t", "no winner for player");
-				} else {
-					points = g_Points.Get(g_State.mode, "winner");
-
-					if (L4D2_GetInfectedAttacker(winner) != -1) {
-						points += g_Points.Get(g_State.mode, "survivor");
-					}
-					
-					g_Player[winner].AddPoints(points);
-					g_Player[winner].Cache();
-
-					g_Player[winner].stats.wins++;
-					IncrementStat(winner, "wins");
-					
-					PrintToClients("%t", "winner for player", winner, g_Player[winner].cache_points);
-
-					for (int i = 1; i <= MaxClients; i++) {
-						if (IsClientAuthorized(i) && winner != i) {
-							g_Player[i].stats.losses++;
-							IncrementStat(i, "losses");
-						}
-					}
-				}
-			}
-			case MODE_TEAMS, MODE_GROUPTEAMS: {
-				int group = GetWinnerGroup();
-				
-				if (group == -1) {
-					PrintToClients("%t", "no winner for team");
-				} else {
-					int[] players = new int[MaxClients];
-					g_Groups.GetGroupMembers(group, players);
-					
-					points = g_Points.Get(g_State.mode, "winner");
-
-					int total; int temp; int player;
-					for (int i = 0; i < MaxClients; i++) {
-						temp = points;
-						player = players[i];
-
-						if (player < 1) {
-							continue;
-						}
-
-						if (L4D2_GetInfectedAttacker(player) != -1) {
-							temp += g_Points.Get(g_State.mode, "survivor");
-						}
-
-						g_Player[player].AddPoints(temp);
-						g_Player[player].Cache();
-
-						total += g_Player[player].cache_points;
-
-						g_Player[player].stats.wins++;
-						IncrementStat(player, "wins");
-					}
-
-					for (int i = 1; i <= MaxClients; i++) {
-						if (IsClientAuthorized(i) && FindValueInADTArray(players, MaxClients, i) == -1) {
-							g_Player[i].stats.losses++;
-							IncrementStat(i, "losses");
-						}
-					}
-
-					PrintToClients("%t", "winner for team", group, total);
-				}
-			}
-		}
-
-		g_State.Finish();
-		g_API.Call_OnEndRace();
-
-	} else {
-		if (g_State.mode == MODE_SINGLES || (g_State.mode == MODE_TEAMS && IsTeamFinished((g_State.group - 1)))) {
-			g_State.PopQueue(true, 6);
-		}
-	}
 }
 
 int FindTrack(const char[] name) {
@@ -365,8 +382,10 @@ void OpenCreateTrackMenu(int client) {
 
 	menu.AddItem("name", "Name: N/A");
 	menu.AddItem("difficulty", "Difficulty: Easy");
-	menu.AddItem("add", "Add Node");
-	menu.AddItem("total", "--- (Total Nodes: 0)");
+	menu.AddItem("add_node", "Add Node");
+	menu.AddItem("total_nodes", "--- (Total Nodes: 0)");
+	menu.AddItem("add_obj", "Add Object");
+	menu.AddItem("total_objs", "--- (Total Objects: 0)");
 	menu.AddItem("save", "Save Track");
 
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -384,8 +403,10 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				char sDifficulty[32];
 				GetDifficultyName(g_CreatingTrack[param1].difficulty, sDifficulty, sizeof(sDifficulty));
 				FormatEx(sDisplay, sizeof(sDisplay), "Difficulty: %s", sDifficulty);
-			} else if (StrEqual(sInfo, "total")) {
+			} else if (StrEqual(sInfo, "total_nodes")) {
 				FormatEx(sDisplay, sizeof(sDisplay), "--- (Total Nodes: %d)", g_CreatingTrack[param1].GetTotalNodes());
+			} else if (StrEqual(sInfo, "total_objs")) {
+				FormatEx(sDisplay, sizeof(sDisplay), "--- (Total Objects: %d)", g_CreatingTrack[param1].GetTotalObjects());
 			}
 
 			return RedrawMenuItem(sDisplay);
@@ -412,7 +433,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 					g_CreatingTrack[param1].difficulty = DIFFICULTY_EASY;
 				}
 
-			} else if (StrEqual(sInfo, "add")) {
+			} else if (StrEqual(sInfo, "add_node")) {
 				g_NewNode[param1] = g_CreatingTrack[param1].GetTotalNodes();
 
 				float origin[3];
@@ -422,7 +443,19 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				g_CreatingTrack[param1].AddNode(origin, color);
 
 				OpenAddNodeMenu(param1, Action_Create);
-				return 0;				
+				return 0;
+			} else if (StrEqual(sInfo, "add_obj")) {
+				g_NewObj[param1] = g_CreatingTrack[param1].GetTotalObjects();
+
+				float origin[3];
+				origin = GetOrigin(param1, 10.0);
+
+				char entity[64] = ""; float angles[3] = {0.0, 0.0, 0.0}; char model[PLATFORM_MAX_PATH] = ""; float scale = 0.0; int color[4] = {255, 255, 255, 255}; int skin = 0;
+				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);
+
+				OpenAddObjectMenu(param1, Action_Create);
+				return 0;
+
 			} else if (StrEqual(sInfo, "save")) {
 				if (g_CreatingTrack[param1].GetTotalNodes() >= 2 && strlen(g_CreatingTrack[param1].name) > 0) {
 					SaveTrack(param1);
@@ -447,205 +480,25 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 	return 0;
 }
 
-void OpenAddNodeMenu(int client, TrackAction action) {
-	float origin[3]; char sColor[32];
-	switch (action) {
-		case Action_Create: {
-			int node = g_NewNode[client];
-
-			int color[4];
-			g_CreatingTrack[client].GetNode(node, origin, color);
-
-			FormatEx(sColor, sizeof(sColor), "%d/%d/%d", color[0], color[1], color[2]);
-		}
-
-		case Action_Edit: {
-			int id = g_EditingTrack[client];
-			int node = g_EditingNode[client];
-
-			int color[4];
-			g_Tracks[id].GetNode(node, origin, color);
-
-			FormatEx(sColor, sizeof(sColor), "%d/%d/%d", color[0], color[1], color[2]);
-		}
-	}
-
-	Menu menu = new Menu(MenuHandler_AddNode);
-	menu.SetTitle("Add a new node:\nOrigin: %.2f/%.2f/%.2f\nColor: %s", origin[0], origin[1], origin[2], sColor);
-
-	menu.AddItem("position", "Update Position");
-	menu.AddItem("color", "Change Color");
-	menu.AddItem("save", "Save Node");
-
-	PushMenuInt(menu, "action", view_as<int>(action));
-
-	menu.ExitBackButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
-}
-
-public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int param2) {
-	TrackAction trackaction = view_as<TrackAction>(GetMenuInt(menu, "action"));
-
-	switch (action) {
-		case MenuAction_Select: {
-			char sInfo[64];
-			menu.GetItem(param2, sInfo, sizeof(sInfo));
-
-			if (g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
-
-			switch (trackaction) {
-				case Action_Create: {
-					int node = g_NewNode[param1];
-					
-					if (StrEqual(sInfo, "position")) {
-						float origin[3];
-						origin = GetOrigin(param1, 10.0);
-						g_CreatingTrack[param1].SetNodeOrigin(node, origin);
-					} else if (StrEqual(sInfo, "color")) {
-						OpenColorsMenu(param1, Action_Create);
-						return 0;
-					} else if (StrEqual(sInfo, "save")) {
-						OpenCreateTrackMenu(param1);
-						return 0;
-					}
-
-					OpenAddNodeMenu(param1, Action_Create);
-				}
-
-				case Action_Edit: {
-					int id = g_EditingTrack[param1];
-					int node = g_EditingNode[param1];
-
-					if (StrEqual(sInfo, "position")) {
-						float origin[3];
-						origin = GetOrigin(param1, 10.0);
-						g_Tracks[id].SetNodeOrigin(node, origin);
-					} else if (StrEqual(sInfo, "color")) {
-						OpenColorsMenu(param1, Action_Edit);
-						return 0;
-					} else if (StrEqual(sInfo, "save")) {
-						OpenNodeEditorMenu(param1, id);
-						return 0;
-					}
-
-					OpenAddNodeMenu(param1, Action_Edit);
-				}
-			}
-		}
-
-		case MenuAction_Cancel: {
-			if (param2 == MenuCancel_ExitBack) {
-				OpenCreateTrackMenu(param1);
-			} else {
-				g_CreatingTrack[param1].Delete();
-			}
-		}
-		
-		case MenuAction_End: {
-			delete menu;
-		}
-	}
-	
-	return 0;
-}
-
-void OpenColorsMenu(int client, TrackAction action) {
-	Menu menu = new Menu(MenuHandler_Colors);
-	menu.SetTitle("Select a color:");
-
-	menu.AddItem("255 0 0 255", "Red");
-	menu.AddItem("0 255 0 255", "Green");
-	menu.AddItem("0 0 255 255", "Blue");
-	menu.AddItem("255 255 0 255", "Yellow");
-	menu.AddItem("255 0 255 255", "Magenta");
-	menu.AddItem("0 255 255 255", "Cyan");
-	menu.AddItem("255 255 255 255", "White");
-	menu.AddItem("0 0 0 255", "Black");
-
-	PushMenuInt(menu, "action", view_as<int>(action));
-
-	menu.ExitBackButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
-}
-
-public int MenuHandler_Colors(Menu menu, MenuAction action, int param1, int param2) {
-	TrackAction trackaction = view_as<TrackAction>(GetMenuInt(menu, "action"));
-
-	switch (action) {
-		case MenuAction_Select: {
-			char sColor[64];
-			menu.GetItem(param2, sColor, sizeof(sColor));
-
-			if (g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
-
-			int color[4];
-			StringToColor(sColor, color);
-
-			switch (trackaction) {
-				case Action_Create: {
-					int node = g_NewNode[param1];
-					g_CreatingTrack[param1].SetNodeColor(node, color);
-					OpenAddNodeMenu(param1, trackaction);
-				}
-
-				case Action_Edit: {
-					int id = g_EditingTrack[param1];
-					int node = g_EditingNode[param1];
-					g_Tracks[id].SetNodeColor(node, color);
-					OpenNodeEditorMenu(param1, id);
-				}
-			}
-		}
-
-		case MenuAction_Cancel: {
-			if (param2 == MenuCancel_ExitBack) {
-				switch (trackaction) {
-					case Action_Create: {
-						OpenAddNodeMenu(param1, trackaction);
-					}
-
-					case Action_Edit: {
-						int id = g_EditingTrack[param1];
-						OpenNodeEditorMenu(param1, id);
-					}
-				}
-			} else {
-				switch (trackaction) {
-					case Action_Create: {
-						g_CreatingTrack[param1].Delete();
-					}
-
-					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingNode[param1] = NO_NODE;
-					}
-				}
-			}
-		}
-		
-		case MenuAction_End: {
-			delete menu;
-		}
-	}
-	
-	return 0;
-}
-
 void SaveTrack(int client) {
 	int index = g_TotalTracks++;
 
+	//Main track data.
 	strcopy(g_Tracks[index].name, sizeof(Track::name), g_CreatingTrack[client].name);
 	g_Tracks[index].difficulty = g_CreatingTrack[client].difficulty;
-	g_Tracks[index].nodes = g_CreatingTrack[client].nodes.Clone();
-	g_Tracks[index].colors = g_CreatingTrack[client].colors.Clone();
+
+	//Nodes.
+	g_Tracks[index].node_origins = g_CreatingTrack[client].node_origins.Clone();
+	g_Tracks[index].node_colors = g_CreatingTrack[client].node_colors.Clone();
+
+	//Objects.
+	g_Tracks[index].object_entity = g_CreatingTrack[client].object_entity.Clone();
+	g_Tracks[index].object_origin = g_CreatingTrack[client].object_origin.Clone();
+	g_Tracks[index].object_angles = g_CreatingTrack[client].object_angles.Clone();
+	g_Tracks[index].object_model = g_CreatingTrack[client].object_model.Clone();
+	g_Tracks[index].object_scale = g_CreatingTrack[client].object_scale.Clone();
+	g_Tracks[index].object_color = g_CreatingTrack[client].object_color.Clone();
+	g_Tracks[index].object_skin = g_CreatingTrack[client].object_skin.Clone();
 
 	PrintToClient(client, "%T", "editor track save", client);
 	g_CreatingTrack[client].Delete();
@@ -803,6 +656,7 @@ void OpenTrackEditorMenu(int client, int id) {
 	menu.AddItem("name", "Name: N/A");
 	menu.AddItem("difficulty", "Difficulty: Easy");
 	menu.AddItem("nodes", "Manage Nodes");
+	menu.AddItem("objects", "Manage Objects");
 
 	PushMenuInt(menu, "id", id);
 
@@ -855,6 +709,9 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 			} else if (StrEqual(sInfo, "nodes")) {
 				OpenNodeEditorMenu(param1, id);
 				return 0;
+			} else if (StrEqual(sInfo, "nodes")) {
+				OpenObjectEditorMenu(param1, id);
+				return 0;
 			}
 
 			OpenTrackEditorMenu(param1, id);
@@ -873,98 +730,6 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 	}
 	
 	return 0;
-}
-
-void OpenNodeEditorMenu(int client, int id) {
-	Menu menu = new Menu(MenuHandler_NodeEditor);
-	menu.SetTitle("Node Editor for %s:\n - Targeted Node: %i", g_Tracks[id].name, g_EditingNode[client]);
-
-	menu.AddItem("add", "Add Node");
-	menu.AddItem("target", "Target Node");
-	menu.AddItem("remove", "Remove Node");
-	menu.AddItem("move", "Move Node");
-	menu.AddItem("color", "Change Color");
-
-	PushMenuInt(menu, "id", id);
-
-	menu.ExitBackButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
-}
-
-public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int param2) {
-	int id = GetMenuInt(menu, "id");
-
-	switch (action) {
-		case MenuAction_Select: {
-			char sInfo[32];
-			menu.GetItem(param2, sInfo, sizeof(sInfo));
-
-			if (StrEqual(sInfo, "add")) {
-				g_EditingNode[param1] = g_Tracks[id].GetTotalNodes();
-
-				float origin[3];
-				origin = GetOrigin(param1, 10.0);
-
-				int color[4] = {255, 255, 255, 255};
-				g_Tracks[id].AddNode(origin, color);
-
-				OpenAddNodeMenu(param1, Action_Edit);
-				return 0;
-			} else if (StrEqual(sInfo, "target")) {
-				g_EditingNode[param1] = GetNearestNode(param1, id);
-			} else if (StrEqual(sInfo, "remove")) {
-				int node = g_EditingNode[param1];
-				g_Tracks[id].DeleteNode(node);
-			} else if (StrEqual(sInfo, "move")) {
-				float origin[3];
-				origin = GetOrigin(param1, 10.0);
-				g_Tracks[id].GetNodeOrigin(g_EditingNode[param1], origin);
-			} else if (StrEqual(sInfo, "color")) {
-				OpenColorsMenu(param1, Action_Edit);
-				return 0;
-			}
-
-			OpenNodeEditorMenu(param1, id);
-		}
-		
-		case MenuAction_Cancel: {
-			if (param2 == MenuCancel_ExitBack) {
-				OpenTrackEditorMenu(param1, id);
-			} else {
-				g_EditingTrack[param1] = NO_TRACK;
-			}
-		}
-
-		case MenuAction_End: {
-			delete menu;
-		}
-	}
-	
-	return 0;
-}
-
-int GetNearestNode(int client, int id) {
-	float origin[3];
-	origin = GetOrigin(client);
-
-	int node = NO_NODE;
-	float origin2[3]; float origin3[3];
-
-	for (int i = 0; i < g_Tracks[id].GetTotalNodes(); i++) {
-		if (node == NO_NODE) {
-			node = i;
-			continue;
-		}
-		
-		g_Tracks[id].GetNodeOrigin(i, origin2);
-		g_Tracks[id].GetNodeOrigin(node, origin3);
-
-		if (GetDistance(origin, origin2) < GetDistance(origin, origin3)) {
-			node = i;
-		}
-	}
-
-	return node;
 }
 
 void AskConfirmSetTrack(int client, int id) {
