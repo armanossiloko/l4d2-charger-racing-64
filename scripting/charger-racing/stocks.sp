@@ -323,7 +323,7 @@ bool StringToBool(const char[] str) {
 	return view_as<bool>(StringToInt(str));
 }
 
-stock void GetCharacterName(int index, char[] buffer, int size) {
+void GetCharacterName(int index, char[] buffer, int size) {
 	switch (index) {
 		case 0:		// Nick
 		{
@@ -808,4 +808,140 @@ int GetReadyPlayers() {
 	}
 
 	return count;
+}
+
+char[] ParseColor(int color[4]) {
+	char buffer[32];
+	Format(buffer, sizeof(buffer), "%d %d %d %d", color[0], color[1], color[2], color[3]);
+	return buffer;
+}
+
+bool DeleteEntity(int entity) {
+	if (!IsValidEntity(entity) || entity < 1) {
+		return false;
+	}
+
+	RemoveEntity(entity);
+	return true;
+}
+
+int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character = 0) {
+	int entity = CreateEntityByName("info_l4d1_survivor_spawn");
+
+	if (!IsValidEntity(entity)) {
+		return entity;
+	}
+	
+	DispatchKeyValueVector(entity, "origin", origin);
+	DispatchKeyValueVector(entity, "angles", angles);
+	DispatchKeyValueInt(entity, "character", character);
+
+	//By default, this entity doesn't allow us to spawn the L4D2 survivors as bots so we set them as L4D1 survivors by default then switch their model later.
+	if (character >= 0 && character <= 3) {
+		DispatchKeyValueInt(entity, "character", character + 4);
+	}
+
+	DispatchSpawn(entity);
+
+	AcceptEntityInput(entity, "SpawnSurvivor");
+	RemoveEntity(entity);
+
+	//Find the bot we just spawned from the entity.
+	int bot = FindLatestBot();
+
+	if (bot == -1) {
+		return -1;
+	}
+
+	DataPack pack;
+	CreateDataTimer(0.1, Timer_SetSurvivor, pack);
+	pack.WriteCell(EntIndexToEntRef(bot));
+	pack.WriteCellArray(origin, sizeof(origin));
+	pack.WriteCell(character);
+
+	return bot;
+}
+
+public Action Timer_SetSurvivor(Handle timer, DataPack pack) {
+	pack.Reset();
+
+	int ref = pack.ReadCell();
+	int bot = EntRefToEntIndex(ref);
+
+	float origin[3];
+	pack.ReadCellArray(origin, sizeof(origin));
+
+	int character = pack.ReadCell();
+
+	if (!IsValidEntity(bot)) {
+		return Plugin_Stop;
+	}
+
+	TeleportEntity(bot, origin, NULL_VECTOR, NULL_VECTOR);
+	SetCharacter(bot, character);
+	L4D2_SetEntityGlow(bot, L4D2Glow_Constant, 0, 5, view_as<int>({255, 0, 0}), true);
+
+	return Plugin_Stop;
+}
+
+void SetCharacter(int entity, int character) {
+	switch (character) {
+		case 0: {
+			SetClientName(entity, "Nick");
+			SetEntityModel(entity, MODEL_NICK);
+		}
+		case 1: {
+			SetClientName(entity, "Rochelle");
+			SetEntityModel(entity, MODEL_ROCHELLE);
+		}
+		case 2: {
+			SetClientName(entity, "Coach");
+			SetEntityModel(entity, MODEL_COACH);
+		}
+		case 3: {
+			SetClientName(entity, "Ellis");
+			SetEntityModel(entity, MODEL_ELLIS);
+		}
+		case 4: {
+			SetClientName(entity, "Bill");
+			SetEntityModel(entity, MODEL_BILL);
+		}
+		case 5: {
+			SetClientName(entity, "Francis");
+			SetEntityModel(entity, MODEL_FRANCIS);
+		}
+		case 6: {
+			SetClientName(entity, "Zoey");
+			SetEntityModel(entity, MODEL_ZOEY);
+		}
+		case 7: {
+			SetClientName(entity, "Louis");
+			SetEntityModel(entity, MODEL_LOUIS);
+		}
+	}
+
+	int weapon = -1;
+	if ((weapon = GetEntPropEnt(entity, Prop_Send, "m_hActiveWeapon")) != -1) {
+		RemovePlayerItem(entity, weapon);
+		vCheatCommand(entity, "give", "weapon_pistol");
+	}
+}
+
+void vCheatCommand(int client, char[] command, char[] arguments = "") {
+	int iCmdFlags = GetCommandFlags(command);
+	SetCommandFlags(command, iCmdFlags & ~FCVAR_CHEAT);
+	FakeClientCommand(client, "%s %s", command, arguments);
+	SetCommandFlags(command, iCmdFlags | FCVAR_CHEAT);
+}
+
+int FindLatestBot() {
+	for (int i = MaxClients; i > 0; --i) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !IsFakeClient(i) || g_TrackObjects.FindValue(i) != -1) {
+			continue;
+		}
+
+		return i;
+	}
+
+	return -1;
 }

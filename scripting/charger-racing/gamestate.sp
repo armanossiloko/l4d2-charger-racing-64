@@ -32,7 +32,8 @@ enum struct GameState {
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
 		KickBots();
-		CreateTrackEnts();
+		CreatePathNodes();
+		CreateTrackObjects();
 
 		for (int i = 1; i <= MaxClients; i++) {
 			if (IsClientInGame(i)) {
@@ -94,7 +95,8 @@ enum struct GameState {
 		this.timer = convar_Racing_Timer.FloatValue;
 
 		KickBots();
-		CreateTrackEnts();
+		CreatePathNodes();
+		CreateTrackObjects();
 	}
 
 	void Racing() {

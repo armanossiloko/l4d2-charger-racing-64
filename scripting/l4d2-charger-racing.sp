@@ -48,6 +48,7 @@ ConVar convar_Jumping_Scale;
 ConVar convar_Pathing;
 ConVar convar_Pathing_Width;
 ConVar convar_Pathing_Rendering;
+ConVar convar_Objects;
 ConVar convar_Preparation_Timer;
 ConVar convar_Racing_Countdown;
 ConVar convar_Racing_Timer;
@@ -101,16 +102,20 @@ Player g_Player[MAXPLAYERS + 1];
 Track g_CreatingTrack[MAXPLAYERS + 1];
 bool g_SettingName[MAXPLAYERS + 1];
 int g_EditingTrack[MAXPLAYERS + 1] = {NO_TRACK, ...};
-int g_EditingNode[MAXPLAYERS + 1] = {NO_NODE, ...};
-int g_EditingObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
+
 int g_NewNode[MAXPLAYERS + 1] = {NO_NODE, ...};
+int g_EditingNode[MAXPLAYERS + 1] = {NO_NODE, ...};
+
 int g_NewObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
+Object g_NewObjectEnt[MAXPLAYERS + 1];
+int g_EditingObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
 
 GameDataHandlers g_GameData;
 
 Cookies g_Cookies;
 
-ArrayList g_BeamEnts;
+ArrayList g_TrackNodes;
+ArrayList g_TrackObjects;
 
 bool added[MAXPLAYERS + 1];
 
@@ -167,6 +172,7 @@ public void OnPluginStart() {
 	convar_Pathing = CreateConVar("sm_l4d2_charger_racing_pathing", "1", "Should the paths be drawn to players?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Pathing_Width = CreateConVar("sm_l4d2_charger_racing_pathing_width", "1.0", "How wide should the paths be?", FCVAR_NOTIFY, true, 0.0);
 	convar_Pathing_Rendering = CreateConVar("sm_l4d2_charger_racing_pathing_rendering", "1", "What type of rendering should the pathing use?\n(0 = tempents, 1 = ents)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Objects = CreateConVar("sm_l4d2_charger_racing_objects", "1", "Should objects be spawned on the track?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Preparation_Timer = CreateConVar("sm_l4d2_charger_racing_preparation_timer", "60", "How long should the preparation phase be?", FCVAR_NOTIFY, true, 0.0);
 	convar_Racing_Countdown = CreateConVar("sm_l4d2_charger_racing_countdown", "5", "How long should the countdown to start the race be?", FCVAR_NOTIFY, true, 0.0);
 	convar_Racing_Timer = CreateConVar("sm_l4d2_charger_racing_timer", "360", "How long should races be in terms of time max?", FCVAR_NOTIFY, true, 0.0);
@@ -245,7 +251,9 @@ public void OnPluginStart() {
 	g_State.Init();
 	g_Points.Init();
 	g_Groups.Init();
-	g_BeamEnts = new ArrayList();
+
+	g_TrackNodes = new ArrayList();
+	g_TrackObjects = new ArrayList();
 
 	//Admin Menu
 	TopMenu topmenu;
@@ -259,7 +267,7 @@ public void OnPluginStart() {
 	//Second ticker and chat print
 	CreateTimer(1.0, Timer_Seconds, _, TIMER_REPEAT);
 
-	PrintToClients("Charger Racing 64 has been loaded.");
+	PrintToClients("Charger Racing 64 (v.%s) has been loaded.", PLUGIN_VERSION);
 }
 
 public void OnSQLConnect(Database db, const char[] error, any data) {
@@ -299,12 +307,20 @@ public void OnCreateTable(Database db, DBResultSet results, const char[] error, 
 
 public void OnPluginEnd() {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsPlayerAlive(i)) {
+		if (!IsClientInGame(i)) {
+			continue;
+		}
+
+		if (IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
 		}
+
+		g_NewObjectEnt[i].Delete();
+		g_NewObjectEnt[i].Clear();
 	}
 
-	ClearTrackEnts();
+	ClearPathNodes();
+	ClearTrackObjects();
 }
 
 public void OnConfigsExecuted() {
@@ -393,7 +409,8 @@ public void OnMapStart() {
 public void OnMapEnd() {
 	g_State.Init();
 	ClearTracks();
-	ClearTrackEnts();
+	ClearPathNodes();
+	ClearTrackObjects();
 }
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
@@ -852,6 +869,8 @@ public void OnClientDisconnect(int client) {
 	if (!IsPlayersAvailable()) {
 		g_State.None(2);
 	}
+
+	g_NewObjectEnt[client].Delete();
 }
 
 public void OnClientDisconnect_Post(int client) {
@@ -863,6 +882,8 @@ public void OnClientDisconnect_Post(int client) {
 	g_EditingTrack[client] = NO_TRACK;
 	g_EditingNode[client] = NO_NODE;
 	g_EditingObj[client] = NO_OBJECT;
+
+	g_NewObjectEnt[client].Clear();
 }
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs) {

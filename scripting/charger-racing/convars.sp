@@ -7,11 +7,11 @@ public void OnPathingChanged(ConVar convar, const char[] oldValue, const char[] 
 
 	if (enabled) {
 		if (convar_Pathing_Rendering.IntValue == 1) {
-			CreateTrackEnts();
+			CreatePathNodes();
 		}
 	} else {
 		if (convar_Pathing_Rendering.IntValue == 1) {
-			ClearTrackEnts();
+			ClearPathNodes();
 		}
 	}
 }
@@ -24,9 +24,9 @@ public void OnPathingRenderingChanged(ConVar convar, const char[] oldValue, cons
 	bool render = StringToBool(newValue);
 
 	if (render) {
-		CreateTrackEnts();
+		CreatePathNodes();
 	} else {
-		ClearTrackEnts();
+		ClearPathNodes();
 	}
 }
 

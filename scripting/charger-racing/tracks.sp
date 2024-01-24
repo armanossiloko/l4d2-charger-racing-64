@@ -283,6 +283,7 @@ void ParseTracks(const char[] file) {
 					skin = kv.GetNum("skin");
 					
 					g_Tracks[index].AddObject(entity, origin, angles, model, scale, color, skin);
+					PrintToServer("Added object: %s", entity);
 				} while (kv.GotoNextKey());
 
 				kv.GoBack();
@@ -331,6 +332,8 @@ void SaveTracks(const char[] file) {
 
 				kv.GoBack();
 			}
+			
+			kv.GoBack();
 		}
 
 		if (kv.JumpToKey("track-objects", true)) {
@@ -353,6 +356,8 @@ void SaveTracks(const char[] file) {
 
 				kv.GoBack();
 			}
+
+			kv.GoBack();
 		}
 
 		kv.GoBack();
@@ -382,7 +387,11 @@ void OpenCreateTrackMenu(int client) {
 
 	menu.AddItem("name", "Name: N/A");
 	menu.AddItem("difficulty", "Difficulty: Easy");
-	menu.AddItem("add_node", "Add Node");
+	if (g_CreatingTrack[client].GetTotalNodes() == 0) {
+		menu.AddItem("add_node", "Add First Node");
+	} else {
+		menu.AddItem("add_node", "Add Node");
+	}
 	menu.AddItem("total_nodes", "--- (Total Nodes: 0)");
 	menu.AddItem("add_obj", "Add Object");
 	menu.AddItem("total_objs", "--- (Total Objects: 0)");
@@ -448,10 +457,13 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				g_NewObj[param1] = g_CreatingTrack[param1].GetTotalObjects();
 
 				float origin[3];
-				origin = GetOrigin(param1, 10.0);
+				GetClientCrosshairOrigin(param1, origin);
 
-				char entity[64] = ""; float angles[3] = {0.0, 0.0, 0.0}; char model[PLATFORM_MAX_PATH] = ""; float scale = 0.0; int color[4] = {255, 255, 255, 255}; int skin = 0;
+				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale = 1.0; int color[4] = {255, 255, 255, 255}; int skin;
 				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);
+
+				g_NewObjectEnt[param1].Register(entity, origin, angles, model, scale, color, skin);
+				g_NewObjectEnt[param1].Create();
 
 				OpenAddObjectMenu(param1, Action_Create);
 				return 0;
@@ -796,104 +808,12 @@ bool SetTrack(int id, bool verbose = true) {
 		}
 	}
 
-	CreateTrackEnts();
+	CreatePathNodes();
+	CreateTrackObjects();
 	
 	return true;
 }
 
 void SetNextTrack(int id) {
 	g_State.nexttrack = id;
-}
-
-void CreateTrackEnts() {
-	ClearTrackEnts();
-
-	if (convar_Pathing_Rendering.IntValue != 1) {
-		return;
-	}
-
-	int track = g_State.track;
-
-	if (track == NO_TRACK) {
-		return;
-	}
-
-	if (convar_Pathing.BoolValue) {		
-		int length = g_Tracks[track].GetTotalNodes();
-		float origin[3]; int color[4];
-		float origin2[3];
-
-		int StartFrame = 0;
-		int FrameRate = 0;
-		float Life = 0.1;
-		float Width = convar_Pathing_Width.FloatValue;
-		//float EndWidth = convar_Pathing_Width.FloatValue;
-		//int FadeLength = 0;
-		float Amplitude = 0.0;
-		int Speed = 0;
-
-		for (int i = 0; i < length; i++) {
-			g_Tracks[track].GetNodeOrigin(i, origin);
-
-			if ((i + 1) >= length) {
-				continue;
-			}
-
-			g_Tracks[track].GetNode((i+1), origin2, color);
-
-			int entity = CreateEntityByName("env_beam");
-
-			if (!IsValidEntity(entity)) {
-				continue;
-			}
-
-			char sColor[64];
-			FormatEx(sColor, sizeof(sColor), "%i %i %i", color[0], color[1], color[2]);
-
-			DispatchKeyValueVector(entity, "origin", origin);
-			DispatchKeyValueFloat(entity, "BoltWidth", Width);
-			DispatchKeyValueInt(entity, "damage", 0);
-			DispatchKeyValue(entity, "decalname", "BigShot");
-			DispatchKeyValueInt(entity, "framerate", FrameRate);
-			DispatchKeyValueInt(entity, "framestart", StartFrame);
-			DispatchKeyValueFloat(entity, "HDRColorScale", 1.0);
-			DispatchKeyValueFloat(entity, "life", Life);
-			DispatchKeyValueInt(entity, "TouchType", 0);
-			DispatchKeyValueFloat(entity, "NoiseAmplitude", Amplitude);
-			DispatchKeyValueInt(entity, "TextureScroll", Speed);
-			DispatchKeyValueInt(entity, "speed", Speed);
-			DispatchKeyValueInt(entity, "Radius", 256);
-			DispatchKeyValue(entity, "texture", "sprites/laserbeam.spr");
-			DispatchKeyValueInt(entity, "renderamt", color[3]);
-			DispatchKeyValueInt(entity, "StrikeTime", 1);
-			DispatchKeyValue(entity, "rendercolor", sColor);
-			DispatchKeyValueVector(entity, "origin", origin);
-			DispatchKeyValueInt(entity, "spawnflags", 0);
-			DispatchKeyValueInt(entity, "renderfx", 0);
-
-			DispatchSpawn(entity);
-			ActivateEntity(entity);
-
-			SetEntityModel(entity, "sprites/laserbeam.vmt");
-
-			SetEntPropVector(entity, Prop_Send, "m_vecEndPos", origin2);
-			SetEntProp(entity, Prop_Send, "m_nHaloIndex", g_HaloIndex);
-
-			AcceptEntityInput(entity, "TurnOn");
-			g_BeamEnts.Push(EntIndexToEntRef(entity));
-		}
-	}
-}
-
-void ClearTrackEnts() {
-	int length = g_BeamEnts.Length;
-	int entity = -1;
-
-	for (int i = 0; i < length; i++) {
-		if ((entity = EntRefToEntIndex(g_BeamEnts.Get(i))) > 0 && IsValidEntity(entity)) {
-			AcceptEntityInput(entity, "Kill");
-		}
-	}
-
-	g_BeamEnts.Clear();
 }

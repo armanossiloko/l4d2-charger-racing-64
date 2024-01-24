@@ -177,10 +177,11 @@ void IsNearFinish(int client) {
 }
 
 void OpenAddNodeMenu(int client, TrackAction action) {
+	int node;
 	float origin[3]; char sColor[32];
 	switch (action) {
 		case Action_Create: {
-			int node = g_NewNode[client];
+			node = g_NewNode[client];
 
 			int color[4];
 			g_CreatingTrack[client].GetNode(node, origin, color);
@@ -190,7 +191,7 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 
 		case Action_Edit: {
 			int id = g_EditingTrack[client];
-			int node = g_EditingNode[client];
+			node = g_EditingNode[client];
 
 			int color[4];
 			g_Tracks[id].GetNode(node, origin, color);
@@ -200,10 +201,18 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 	}
 
 	Menu menu = new Menu(MenuHandler_AddNode);
-	menu.SetTitle("Add a new node:\nOrigin: %.2f/%.2f/%.2f\nColor: %s", origin[0], origin[1], origin[2], sColor);
+	if (node == 0) {
+		menu.SetTitle("Add a new node:\nOrigin: %.2f/%.2f/%.2f", origin[0], origin[1], origin[2]);
+	} else {
+		menu.SetTitle("Add a new node:\nOrigin: %.2f/%.2f/%.2f\nColor: %s", origin[0], origin[1], origin[2], sColor);
+	}
 
 	menu.AddItem("position", "Update Position");
-	menu.AddItem("color", "Change Color");
+
+	if (node > 0) {
+		menu.AddItem("color", "Change Color");
+	}
+
 	menu.AddItem("save", "Save Node");
 
 	PushMenuInt(menu, "action", view_as<int>(action));
@@ -458,4 +467,98 @@ public int MenuHandler_NodeColors(Menu menu, MenuAction action, int param1, int 
 	}
 	
 	return 0;
+}
+
+void CreatePathNodes() {
+	ClearPathNodes();
+
+	if (convar_Pathing_Rendering.IntValue != 1) {
+		return;
+	}
+
+	int track = g_State.track;
+
+	if (track == NO_TRACK) {
+		return;
+	}
+
+	if (convar_Pathing.BoolValue) {
+		int length = g_Tracks[track].GetTotalNodes();
+		float origin[3]; int color[4];
+		float origin2[3];
+
+		int StartFrame = 0;
+		int FrameRate = 0;
+		float Life = 0.1;
+		float Width = convar_Pathing_Width.FloatValue;
+		//float EndWidth = convar_Pathing_Width.FloatValue;
+		//int FadeLength = 0;
+		float Amplitude = 0.0;
+		int Speed = 0;
+
+		for (int i = 0; i < length; i++) {
+			g_Tracks[track].GetNodeOrigin(i, origin);
+
+			if ((i + 1) >= length) {
+				continue;
+			}
+
+			g_Tracks[track].GetNode((i+1), origin2, color);
+
+			int entity = CreateEntityByName("env_beam");
+
+			if (!IsValidEntity(entity)) {
+				continue;
+			}
+
+			char sColor[64];
+			FormatEx(sColor, sizeof(sColor), "%i %i %i", color[0], color[1], color[2]);
+
+			DispatchKeyValueVector(entity, "origin", origin);
+			DispatchKeyValueFloat(entity, "BoltWidth", Width);
+			DispatchKeyValueInt(entity, "damage", 0);
+			DispatchKeyValue(entity, "decalname", "BigShot");
+			DispatchKeyValueInt(entity, "framerate", FrameRate);
+			DispatchKeyValueInt(entity, "framestart", StartFrame);
+			DispatchKeyValueFloat(entity, "HDRColorScale", 1.0);
+			DispatchKeyValueFloat(entity, "life", Life);
+			DispatchKeyValueInt(entity, "TouchType", 0);
+			DispatchKeyValueFloat(entity, "NoiseAmplitude", Amplitude);
+			DispatchKeyValueInt(entity, "TextureScroll", Speed);
+			DispatchKeyValueInt(entity, "speed", Speed);
+			DispatchKeyValueInt(entity, "Radius", 256);
+			DispatchKeyValue(entity, "texture", "sprites/laserbeam.spr");
+			DispatchKeyValueInt(entity, "renderamt", color[3]);
+			DispatchKeyValueInt(entity, "StrikeTime", 1);
+			DispatchKeyValue(entity, "rendercolor", sColor);
+			DispatchKeyValueVector(entity, "origin", origin);
+			DispatchKeyValueInt(entity, "spawnflags", 0);
+			DispatchKeyValueInt(entity, "renderfx", 0);
+
+			DispatchSpawn(entity);
+			ActivateEntity(entity);
+
+			SetEntityModel(entity, "sprites/laserbeam.vmt");
+
+			SetEntPropVector(entity, Prop_Send, "m_vecEndPos", origin2);
+			SetEntProp(entity, Prop_Send, "m_nHaloIndex", g_HaloIndex);
+
+			AcceptEntityInput(entity, "TurnOn");
+
+			g_TrackNodes.Push(EntIndexToEntRef(entity));
+		}
+	}
+}
+
+void ClearPathNodes() {
+	int length = g_TrackNodes.Length;
+	int entity = -1;
+
+	for (int i = 0; i < length; i++) {
+		if ((entity = EntRefToEntIndex(g_TrackNodes.Get(i))) > 0 && IsValidEntity(entity)) {
+			AcceptEntityInput(entity, "Kill");
+		}
+	}
+
+	g_TrackNodes.Clear();
 }

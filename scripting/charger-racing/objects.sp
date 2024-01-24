@@ -1,32 +1,161 @@
-void OpenAddObjectMenu(int client, TrackAction action) {
+enum struct Object {
+	char entity[64];
 	float origin[3];
+	float angles[3];
+	char model[PLATFORM_MAX_PATH];
+	float scale;
+	int color[4];
+	int skin;
+
+	int index;
+
+	void Register(const char[] entity, float origin[3], float angles[3], const char[] model, float scale, int color[4], int skin) {
+		strcopy(this.entity, sizeof(Object::entity), entity);
+		this.origin = origin;
+		this.angles = angles;
+		strcopy(this.model, sizeof(Object::model), model);
+		this.scale = scale;
+		this.color = color;
+		this.skin = skin;
+	}
+
+	void Clear() {
+		this.entity[0] = '\0';
+		this.origin = {0.0, 0.0, 0.0};
+		this.angles = {0.0, 0.0, 0.0};
+		this.model[0] = '\0';
+		this.scale = 1.0;
+		this.color = {255, 255, 255, 255};
+		this.skin = 0;
+	}
+
+	void Create() {
+		this.Delete();
+
+		if (StrEqual(this.entity, "info_l4d1_survivor_spawn")) {
+			this.index = SpawnSurvivor(this.origin, this.angles, this.skin);
+		} else {
+			this.index = CreateEntityByName(this.entity);
+		}
+
+		if (!IsValidEntity(this.index)) {
+			return;
+		}
+
+		DispatchKeyValueVector(this.index, "origin", this.origin);
+		DispatchKeyValueVector(this.index, "angles", this.angles);
+		DispatchKeyValue(this.index, "model", this.model);
+		DispatchKeyValueFloat(this.index, "scale", this.scale);
+		DispatchKeyValue(this.index, "rendercolor", ParseColor(this.color));
+		DispatchKeyValueInt(this.index, "skin", this.skin);
+
+		DispatchSpawn(this.index);
+		ActivateEntity(this.index);
+	}
+
+	void SetEntity(const char[] entity) {
+		strcopy(this.entity, sizeof(Object::entity), entity);
+		this.Delete();
+		this.Create();
+	}
+
+	void SetOrigin(float origin[3]) {
+		this.origin = origin;
+		
+		if (IsValidEntity(this.index)) {
+			TeleportEntity(this.index, this.origin, NULL_VECTOR, NULL_VECTOR);
+		}
+	}
+
+	void SetAngles(float angles[3]) {
+		this.angles = angles;
+		
+		if (IsValidEntity(this.index)) {
+			TeleportEntity(this.index, NULL_VECTOR, this.angles, NULL_VECTOR);
+		}
+	}
+
+	void SetModel(const char[] model) {
+		strcopy(this.model, sizeof(Object::model), model);
+		
+		if (IsValidEntity(this.index)) {
+			SetEntityModel(this.index, this.model);
+		}
+	}
+
+	void SetScale(float scale) {
+		this.scale = scale;
+		
+		if (IsValidEntity(this.index)) {
+			SetEntPropFloat(this.index, Prop_Data, "m_flModelScale", this.scale);
+		}
+	}
+
+	void SetColor(int color[4]) {
+		this.color = color;
+		
+		if (IsValidEntity(this.index)) {
+			SetEntityRenderColor(this.index, this.color[0], this.color[1], this.color[2], this.color[3]);
+		}
+	}
+
+	void SetSkin(int skin) {
+		this.skin = skin;
+		
+		if (IsValidEntity(this.index)) {
+			if (StrEqual(this.entity, "info_l4d1_survivor_spawn", false)) {
+
+				if (this.skin >= 0 && this.skin <= 3) {
+					SetEntProp(this.index, Prop_Send, "m_survivorCharacter", this.skin + 4);
+				}
+
+				SetCharacter(this.index, this.skin);
+			} else {
+				SetEntProp(this.index, Prop_Data, "m_nSkin", this.skin + 4);
+			}
+		}
+	}
+
+	void Delete() {
+		if (IsValidEntity(this.index) && this.index > 0) {
+			DeleteEntity(this.index);
+		}
+
+		this.index = 0;
+	}
+}
+
+void OpenAddObjectMenu(int client, TrackAction action) {
+	char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 	switch (action) {
 		case Action_Create: {
 			int obj = g_NewObj[client];
-
-			char entity[64]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 			g_CreatingTrack[client].GetObject(obj, entity, origin, angles, model, scale, color, skin);
 		}
 
 		case Action_Edit: {
 			int id = g_EditingTrack[client];
 			int obj = g_EditingObj[client];
-
-			char entity[64]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 			g_Tracks[id].GetObject(obj, entity, origin, angles, model, scale, color, skin);
 		}
 	}
 
-	Menu menu = new Menu(MenuHandler_AddObject);
+	Menu menu = new Menu(MenuHandler_AddObject, MENU_ACTIONS_ALL);
 	menu.SetTitle("Add a new object:");
 
 	menu.AddItem("entity", "Update Entity");
 	menu.AddItem("origin", "Update Origin");
-	menu.AddItem("angles", "Update Angles");
-	menu.AddItem("model", "Update Model");
-	menu.AddItem("scale", "Update Scale");
+
+	if (StrEqual(entity, "info_l4d1_survivor_spawn", false)) {
+		menu.AddItem("character", "Update Character");
+	} else {
+		menu.AddItem("angles", "Update Angles");
+		menu.AddItem("model", "Update Model");
+		menu.AddItem("scale", "Update Scale");
+		menu.AddItem("skin", "Update Skin");
+	}
+
 	menu.AddItem("color", "Update Color");
-	menu.AddItem("skin", "Update Skin");
 	menu.AddItem("save", "Save Object");
 
 	PushMenuInt(menu, "action", view_as<int>(action));
@@ -39,6 +168,60 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 	TrackAction trackaction = view_as<TrackAction>(GetMenuInt(menu, "action"));
 
 	switch (action) {
+		case MenuAction_DisplayItem: {
+			char sInfo[64]; char sDisplay[64];
+			menu.GetItem(param2, sInfo, sizeof(sInfo), _, sDisplay, sizeof(sDisplay));
+
+			switch (trackaction) {
+				case Action_Create: {
+					int obj = g_NewObj[param1];
+
+					if (StrEqual(sInfo, "entity")) {
+						char entity[64];
+						g_CreatingTrack[param1].GetObjectEntity(obj, entity, sizeof(entity));
+						char name[64];
+						GetObjectDisplayName(entity, name, sizeof(name));
+						FormatEx(sDisplay, sizeof(sDisplay), "Entity: %s", strlen(entity) > 0 ? name : "< Empty >");
+					} else if (StrEqual(sInfo, "origin")) {
+						float origin[3];
+						g_CreatingTrack[param1].GetObjectOrigin(obj, origin);
+						FormatEx(sDisplay, sizeof(sDisplay), "Origin: %.2f/%.2f/%.2f", origin[0], origin[1], origin[2]);
+					} else if (StrEqual(sInfo, "angles")) {
+						float angles[3];
+						g_CreatingTrack[param1].GetObjectAngles(obj, angles);
+						FormatEx(sDisplay, sizeof(sDisplay), "Angles: %.2f/%.2f/%.2f", angles[0], angles[1], angles[2]);
+					} else if (StrEqual(sInfo, "model")) {
+						char model[PLATFORM_MAX_PATH];
+						g_CreatingTrack[param1].GetObjectModel(obj, model, sizeof(model));
+						FormatEx(sDisplay, sizeof(sDisplay), "Model: %s", strlen(model) > 0 ? model : "< Empty >");
+					} else if (StrEqual(sInfo, "scale")) {
+						float scale = g_CreatingTrack[param1].GetObjectScale(obj);
+						FormatEx(sDisplay, sizeof(sDisplay), "Scale: %f", scale);
+					} else if (StrEqual(sInfo, "color")) {
+						int color[4];
+						g_CreatingTrack[param1].GetObjectColor(obj, color);
+						FormatEx(sDisplay, sizeof(sDisplay), "Color: %i/%i/%i/%i", color[0], color[1], color[2], color[3]);
+					} else if (StrEqual(sInfo, "skin")) {
+						int skin = g_CreatingTrack[param1].GetObjectSkin(obj);
+						FormatEx(sDisplay, sizeof(sDisplay), "Skin: %i", skin);
+					} else if (StrEqual(sInfo, "character")) {
+						int skin = g_CreatingTrack[param1].GetObjectSkin(obj);
+						char name[64];
+						GetCharacterName(skin, name, sizeof(name));
+						FormatEx(sDisplay, sizeof(sDisplay), "Character: %s", name);
+					}
+				}
+			}
+
+			return RedrawMenuItem(sDisplay);
+		}
+
+		case MenuAction_DrawItem: {
+			char sInfo[64]; int itemdraw;
+			menu.GetItem(param2, sInfo, sizeof(sInfo), itemdraw);
+			return itemdraw;
+		}
+
 		case MenuAction_Select: {
 			char sInfo[64];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
@@ -58,8 +241,9 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 						return 0;
 					} else if (StrEqual(sInfo, "origin")) {
 						float origin[3];
-						origin = GetOrigin(param1, 10.0);
+						GetClientCrosshairOrigin(param1, origin);
 						g_CreatingTrack[param1].SetObjectOrigin(obj, origin);
+						g_NewObjectEnt[param1].SetOrigin(origin);
 					} else if (StrEqual(sInfo, "angles")) {
 						OpenObjectAnglesMenu(param1, Action_Create);
 						return 0;
@@ -72,10 +256,12 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 					} else if (StrEqual(sInfo, "color")) {
 						OpenObjectColorsMenu(param1, Action_Create);
 						return 0;
-					} else if (StrEqual(sInfo, "skin")) {
+					} else if (StrEqual(sInfo, "skin") || StrEqual(sInfo, "character")) {
 						OpenObjectSkinsMenu(param1, Action_Create);
 						return 0;
 					} else if (StrEqual(sInfo, "save")) {
+						g_NewObjectEnt[param1].Delete();
+						g_NewObjectEnt[param1].Clear();
 						OpenCreateTrackMenu(param1);
 						return 0;
 					}
@@ -185,7 +371,10 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 				return 0;
 			} else if (StrEqual(sInfo, "origin")) {
 				float origin[3];
-				origin = GetOrigin(param1, 10.0);
+				GetClientCrosshairOrigin(param1, origin);
+
+				g_NewObjectEnt[param1].SetOrigin(origin);
+
 				g_Tracks[id].GetObjectOrigin(g_EditingObj[param1], origin);
 			} else if (StrEqual(sInfo, "angles")) {
 				OpenObjectAnglesMenu(param1, Action_Edit);
@@ -251,8 +440,8 @@ void OpenObjectEntitiesMenu(int client, TrackAction action) {
 	Menu menu = new Menu(MenuHandler_ObjectEntities);
 	menu.SetTitle("Select an entity:");
 
-	menu.AddItem("info_l4d1_survivor_spawn", "Prop");
-	menu.AddItem("prop_dynamic_override", "Survivor");
+	menu.AddItem("prop_dynamic_override", "Prop");
+	menu.AddItem("info_l4d1_survivor_spawn", "Survivor");
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
@@ -277,14 +466,20 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_NewObj[param1];
+
 					g_CreatingTrack[param1].SetObjectEntity(obj, sEntity);
-					OpenAddObjectMenu(param1, trackaction);
+
+					g_NewObjectEnt[param1].SetEntity(sEntity);
+
+					OpenObjectEntitiesMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
 					g_Tracks[id].SetObjectEntity(obj, sEntity);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -358,8 +553,10 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_NewObj[param1];
+
 					float angles[3];
 					g_CreatingTrack[param1].GetObjectAngles(obj, angles);
+
 					if (StrEqual(sInfo, "+x")) {
 						angles[0] += 1.0;
 					} else if (StrEqual(sInfo, "-x")) {
@@ -373,15 +570,21 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 					} else if (StrEqual(sInfo, "-z")) {
 						angles[2] -= 1.0;
 					}
+
 					g_CreatingTrack[param1].SetObjectAngles(obj, angles);
-					OpenAddObjectMenu(param1, trackaction);
+
+					g_NewObjectEnt[param1].SetAngles(angles);
+
+					OpenObjectAnglesMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
 					float angles[3];
 					g_Tracks[id].GetObjectAngles(obj, angles);
+
 					if (StrEqual(sInfo, "+x")) {
 						angles[0] += 1.0;
 					} else if (StrEqual(sInfo, "-x")) {
@@ -395,7 +598,9 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 					} else if (StrEqual(sInfo, "-z")) {
 						angles[2] -= 1.0;
 					}
+
 					g_Tracks[id].SetObjectAngles(obj, angles);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -464,14 +669,20 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_NewObj[param1];
+
 					g_CreatingTrack[param1].SetObjectModel(obj, sModel);
-					OpenAddObjectMenu(param1, trackaction);
+
+					g_NewObjectEnt[param1].SetModel(sModel);
+
+					OpenObjectModelsMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
 					g_Tracks[id].SetObjectModel(obj, sModel);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -517,8 +728,6 @@ void OpenObjectScalesMenu(int client, TrackAction action) {
 
 	menu.AddItem("+0.1", " + 0.1");
 	menu.AddItem("-0.1", " - 0.1");
-	menu.AddItem("+1.0", " + 1.0");
-	menu.AddItem("-1.0", " - 1.0");
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
@@ -543,24 +752,28 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_NewObj[param1];
+
 					float scale = g_CreatingTrack[param1].GetObjectScale(obj);
+
 					if (StrEqual(sInfo, "+0.1")) {
 						scale += 0.1;
 					} else if (StrEqual(sInfo, "-0.1")) {
 						scale -= 0.1;
-					} else if (StrEqual(sInfo, "+1.0")) {
-						scale += 1.0;
-					} else if (StrEqual(sInfo, "-1.0")) {
-						scale -= 1.0;
 					}
+
 					g_CreatingTrack[param1].SetObjectScale(obj, scale);
-					OpenAddObjectMenu(param1, trackaction);
+
+					g_NewObjectEnt[param1].SetScale(scale);
+
+					OpenObjectScalesMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
 					float scale = g_Tracks[id].GetObjectScale(obj);
+
 					if (StrEqual(sInfo, "+0.1")) {
 						scale += 0.1;
 					} else if (StrEqual(sInfo, "-0.1")) {
@@ -570,7 +783,9 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 					} else if (StrEqual(sInfo, "-1.0")) {
 						scale -= 1.0;
 					}
+
 					g_Tracks[id].SetObjectScale(obj, scale);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -614,14 +829,13 @@ void OpenObjectColorsMenu(int client, TrackAction action) {
 	Menu menu = new Menu(MenuHandler_ObjectColors);
 	menu.SetTitle("Select a color:");
 
+	menu.AddItem("255 255 255 255", "None");
 	menu.AddItem("255 0 0 255", "Red");
 	menu.AddItem("0 255 0 255", "Green");
 	menu.AddItem("0 0 255 255", "Blue");
 	menu.AddItem("255 255 0 255", "Yellow");
 	menu.AddItem("255 0 255 255", "Magenta");
 	menu.AddItem("0 255 255 255", "Cyan");
-	menu.AddItem("255 255 255 255", "White");
-	menu.AddItem("0 0 0 255", "Black");
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
@@ -649,14 +863,20 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_NewObj[param1];
+
 					g_CreatingTrack[param1].SetObjectColor(obj, color);
-					OpenAddObjectMenu(param1, trackaction);
+
+					g_NewObjectEnt[param1].SetColor(color);
+
+					OpenObjectColorsMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
 					g_Tracks[id].SetObjectColor(obj, color);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -700,11 +920,48 @@ void OpenObjectSkinsMenu(int client, TrackAction action) {
 	Menu menu = new Menu(MenuHandler_ObjectSkins);
 	menu.SetTitle("Select a skin:");
 
-	menu.AddItem("1", "1");
-	menu.AddItem("2", "2");
-	menu.AddItem("3", "3");
-	menu.AddItem("4", "4");
-	menu.AddItem("5", "5");
+	bool survivors;
+	switch (action) {
+		case Action_Create: {
+			int obj = g_NewObj[client];
+
+			char entity[64];
+			g_CreatingTrack[client].GetObjectEntity(obj, entity, sizeof(entity));
+
+			survivors = StrEqual(entity, "info_l4d1_survivor_spawn", false);
+		}
+
+		case Action_Edit: {
+			int id = g_EditingTrack[client];
+			int obj = g_EditingObj[client];
+
+			char entity[64];
+			g_Tracks[id].GetObjectEntity(obj, entity, sizeof(entity));
+
+			survivors = StrEqual(entity, "info_l4d1_survivor_spawn", false);
+		}
+	}
+
+	if (survivors) {
+		menu.AddItem("0", "Nick");
+		menu.AddItem("1", "Rochelle");
+		menu.AddItem("2", "Coach");
+		menu.AddItem("3", "Ellis");
+		menu.AddItem("4", "Bill");
+		menu.AddItem("5", "Francis");
+		menu.AddItem("6", "Zoey");
+		menu.AddItem("7", "Louis");
+	} else {
+		menu.AddItem("0", "0");
+		menu.AddItem("1", "1");
+		menu.AddItem("2", "2");
+		menu.AddItem("3", "3");
+		menu.AddItem("4", "4");
+		menu.AddItem("5", "5");
+		menu.AddItem("6", "6");
+		menu.AddItem("7", "7");
+		menu.AddItem("8", "8");
+	}
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
@@ -731,14 +988,20 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_NewObj[param1];
+
 					g_CreatingTrack[param1].SetObjectSkin(obj, skin);
-					OpenAddObjectMenu(param1, trackaction);
+
+					g_NewObjectEnt[param1].SetSkin(skin);
+
+					OpenObjectSkinsMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
 					g_Tracks[id].SetObjectSkin(obj, skin);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -776,4 +1039,92 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 	}
 	
 	return 0;
+}
+
+void GetObjectDisplayName(const char[] entity, char[] buffer, int size) {
+	if (StrEqual(entity, "prop_dynamic_override")) {
+		FormatEx(buffer, size, "Prop");
+	} else if (StrEqual(entity, "info_l4d1_survivor_spawn")) {
+		FormatEx(buffer, size, "Survivor");
+	} else {
+		FormatEx(buffer, size, "< Unknown >");
+	}
+}
+
+void CreateTrackObjects() {
+	int track = g_State.track;
+
+	if (track == NO_TRACK) {
+		return;
+	}
+
+	if (convar_Objects.BoolValue) {
+		int length = g_Tracks[track].GetTotalObjects(); float value;
+		char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
+		for (int i = 0; i < length; i++) {
+			g_Tracks[track].GetObject(i, entity, origin, angles, model, scale, color, skin);
+
+			if (StrEqual(entity, "info_l4d1_survivor_spawn", false)) {
+				DataPack pack;
+				CreateDataTimer(value, Timer_SpawnBot, pack, TIMER_FLAG_NO_MAPCHANGE);
+				pack.WriteCellArray(origin, sizeof(origin));
+				pack.WriteCellArray(angles, sizeof(angles));
+				pack.WriteCell(skin);
+				value += 2.0;
+				continue;
+			}
+
+			int ent = CreateEntityByName(entity);
+
+			if (!IsValidEntity(ent)) {
+				continue;
+			}
+
+			DispatchKeyValueVector(ent, "origin", origin);
+			DispatchKeyValueVector(ent, "angles", angles);
+			DispatchKeyValue(ent, "model", model);
+			DispatchKeyValueFloat(ent, "scale", scale);
+			DispatchKeyValueInt(ent, "renderamt", color[3]);
+			DispatchKeyValueInt(ent, "rendermode", 0);
+			DispatchKeyValueInt(ent, "renderfx", 0);
+			DispatchKeyValueInt(ent, "skin", skin);
+
+			DispatchSpawn(ent);
+			ActivateEntity(ent);
+
+			g_TrackObjects.Push(EntIndexToEntRef(ent));
+		}
+	}
+}
+
+public Action Timer_SpawnBot(Handle timer, DataPack pack) {
+	pack.Reset();
+
+	float origin[3]; float angles[3]; int skin;
+	pack.ReadCellArray(origin, sizeof(origin));
+	pack.ReadCellArray(angles, sizeof(angles));
+	skin = pack.ReadCell();
+
+	int ent = SpawnSurvivor(origin, angles, skin);
+	
+	if (!IsValidEntity(ent)) {
+		return Plugin_Stop;
+	}
+	
+	g_TrackObjects.Push(EntIndexToEntRef(ent));
+	
+	return Plugin_Stop;
+}
+
+void ClearTrackObjects() {
+	int length = g_TrackObjects.Length;
+	int entity = -1;
+
+	for (int i = 0; i < length; i++) {
+		if ((entity = EntRefToEntIndex(g_TrackObjects.Get(i))) > 0 && IsValidEntity(entity)) {
+			AcceptEntityInput(entity, "Kill");
+		}
+	}
+
+	g_TrackObjects.Clear();
 }
