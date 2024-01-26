@@ -322,7 +322,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 }
 
 void OpenObjectEditorMenu(int client, int id) {
-	Menu menu = new Menu(MenuHandler_ObjectEditor);
+	Menu menu = new Menu(MenuHandler_ObjectEditor, MENU_ACTIONS_ALL);
 	menu.SetTitle("Object Editor for %s:\n - Targeted Object: %i", g_Tracks[id].name, g_EditingObj[client]);
 
 	menu.AddItem("add", "Add Object");
@@ -346,6 +346,18 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 	int id = GetMenuInt(menu, "id");
 
 	switch (action) {
+		case MenuAction_DisplayItem: {
+			char sInfo[64]; int itemdraw; char sDisplay[64];
+			menu.GetItem(param2, sInfo, sizeof(sInfo), itemdraw, sDisplay, sizeof(sDisplay));
+			return RedrawMenuItem(sDisplay);
+		}
+
+		case MenuAction_DrawItem: {
+			char sInfo[64]; int itemdraw;
+			menu.GetItem(param2, sInfo, sizeof(sInfo), itemdraw);
+			return itemdraw;
+		}
+
 		case MenuAction_Select: {
 			char sInfo[32];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
@@ -354,28 +366,47 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 				g_EditingObj[param1] = g_Tracks[id].GetTotalObjects();
 
 				float origin[3];
-				origin = GetOrigin(param1, 10.0);
+				GetClientCrosshairOrigin(param1, origin);
 
-				char entity[64]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
+				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 				g_Tracks[id].AddObject(entity, origin, angles, model, scale, color, skin);
 
 				OpenAddObjectMenu(param1, Action_Edit);
 				return 0;
 			} else if (StrEqual(sInfo, "target")) {
 				g_EditingObj[param1] = GetNearestObj(param1, id);
+
+				if (g_EditingObj[param1] != NO_OBJECT) {
+					PrintToClient(param1, "%T", "object targeted", param1);
+				} else {
+					PrintToClient(param1, "%T", "no object targeted", param1);
+				}
+
 			} else if (StrEqual(sInfo, "remove")) {
 				int obj = g_EditingObj[param1];
-				g_Tracks[id].DeleteObject(obj);
+
+				if (obj != NO_OBJECT) {
+					g_Tracks[id].DeleteObject(obj);
+					PrintToClient(param1, "%T", "object removed", param1);
+				} else {
+					PrintToClient(param1, "%T", "no object selected", param1);
+				}
+
 			} else if (StrEqual(sInfo, "entity")) {
 				OpenObjectEntitiesMenu(param1, Action_Edit);
 				return 0;
 			} else if (StrEqual(sInfo, "origin")) {
-				float origin[3];
-				GetClientCrosshairOrigin(param1, origin);
+				int obj = g_EditingObj[param1];
 
-				g_NewObjectEnt[param1].SetOrigin(origin);
+				if (obj != NO_OBJECT) {
+					float origin[3];
+					GetClientCrosshairOrigin(param1, origin);
+					g_Tracks[id].SetObjectOrigin(obj, origin);
+					PrintToClient(param1, "%T", "object origin updated", param1);
+				} else {
+					PrintToClient(param1, "%T", "no object selected", param1);
+				}
 
-				g_Tracks[id].GetObjectOrigin(g_EditingObj[param1], origin);
 			} else if (StrEqual(sInfo, "angles")) {
 				OpenObjectAnglesMenu(param1, Action_Edit);
 				return 0;
@@ -400,6 +431,7 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 			if (param2 == MenuCancel_ExitBack) {
 				OpenTrackEditorMenu(param1, id);
 			} else {
+				g_EditingObj[param1] = NO_OBJECT;
 				g_EditingTrack[param1] = NO_TRACK;
 			}
 		}
@@ -420,12 +452,17 @@ int GetNearestObj(int client, int id) {
 	float origin2[3]; float origin3[3];
 
 	for (int i = 0; i < g_Tracks[id].GetTotalObjects(); i++) {
+		g_Tracks[id].GetObjectOrigin(i, origin2);
+
+		if (GetVectorDistance(origin, origin2) > 100.0) {
+			continue;
+		}
+
 		if (obj == NO_OBJECT) {
 			obj = i;
 			continue;
 		}
 		
-		g_Tracks[id].GetObjectOrigin(i, origin2);
 		g_Tracks[id].GetObjectOrigin(obj, origin3);
 
 		if (GetDistance(origin, origin2) < GetDistance(origin, origin3)) {
@@ -582,6 +619,12 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
 
+					if (obj == NO_OBJECT) {
+						PrintToClient(param1, "%T", "no object selected", param1);
+						OpenObjectEditorMenu(param1, id);
+						return 0;
+					}
+
 					float angles[3];
 					g_Tracks[id].GetObjectAngles(obj, angles);
 
@@ -644,12 +687,36 @@ void OpenObjectModelsMenu(int client, TrackAction action) {
 	Menu menu = new Menu(MenuHandler_ObjectModels);
 	menu.SetTitle("Choose Object Model:");
 
-	menu.AddItem("models/props_c17/furnituretable001a.mdl", "Table");
+	int stringTable = FindStringTable("modelprecache");
+	int numStrings = GetStringTableNumStrings(stringTable);
+
+	char strModel[PLATFORM_MAX_PATH]; char display[PLATFORM_MAX_PATH];
+	for (int i = 0; i < numStrings; i++) {
+		ReadStringTable(stringTable, i, strModel, sizeof(strModel));
+
+		if (StrContains(strModel, "models/props", false) != 0 || StrContains(strModel, ".mdl", false) == -1) {
+			continue;
+		}
+
+		GetModelName(strModel, display, sizeof(display));
+
+		if (strlen(display) == 0) {
+			continue;
+		}
+
+		menu.AddItem(strModel, display);
+	}
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+void GetModelName(const char[] model, char[] display, int size) {
+	char part[16][64];
+	int found = ExplodeString(model, "/", part, 16, 64);
+	strcopy(display, size, part[found-1]);
 }
 
 public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, int param2) {
@@ -680,6 +747,12 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
+					if (obj == NO_OBJECT) {
+						PrintToClient(param1, "%T", "no object selected", param1);
+						OpenObjectEditorMenu(param1, id);
+						return 0;
+					}
 
 					g_Tracks[id].SetObjectModel(obj, sModel);
 
@@ -771,6 +844,12 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
+					if (obj == NO_OBJECT) {
+						PrintToClient(param1, "%T", "no object selected", param1);
+						OpenObjectEditorMenu(param1, id);
+						return 0;
+					}
 
 					float scale = g_Tracks[id].GetObjectScale(obj);
 
@@ -874,6 +953,12 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
+
+					if (obj == NO_OBJECT) {
+						PrintToClient(param1, "%T", "no object selected", param1);
+						OpenObjectEditorMenu(param1, id);
+						return 0;
+					}
 
 					g_Tracks[id].SetObjectColor(obj, color);
 
@@ -1000,6 +1085,12 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 					int id = g_EditingTrack[param1];
 					int obj = g_EditingObj[param1];
 
+					if (obj == NO_OBJECT) {
+						PrintToClient(param1, "%T", "no object selected", param1);
+						OpenObjectEditorMenu(param1, id);
+						return 0;
+					}
+
 					g_Tracks[id].SetObjectSkin(obj, skin);
 
 					OpenObjectEditorMenu(param1, id);
@@ -1052,6 +1143,8 @@ void GetObjectDisplayName(const char[] entity, char[] buffer, int size) {
 }
 
 void CreateTrackObjects() {
+	ClearTrackObjects();
+
 	int track = g_State.track;
 
 	if (track == NO_TRACK) {
@@ -1059,18 +1152,32 @@ void CreateTrackObjects() {
 	}
 
 	if (convar_Objects.BoolValue) {
-		int length = g_Tracks[track].GetTotalObjects(); float value;
-		char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
-		for (int i = 0; i < length; i++) {
+		for (int i = 0; i < g_Tracks[track].GetTotalObjects(); i++) {
+
+			char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 			g_Tracks[track].GetObject(i, entity, origin, angles, model, scale, color, skin);
 
 			if (StrEqual(entity, "info_l4d1_survivor_spawn", false)) {
-				DataPack pack;
-				CreateDataTimer(value, Timer_SpawnBot, pack, TIMER_FLAG_NO_MAPCHANGE);
-				pack.WriteCellArray(origin, sizeof(origin));
-				pack.WriteCellArray(angles, sizeof(angles));
-				pack.WriteCell(skin);
-				value += 2.0;
+				PrintToServer("Creating survivor %i: %s %.2f/%.2f/%.2f", i, entity, origin[0], origin[1], origin[2]);
+				int ent = SpawnSurvivor(origin, angles, skin);
+				g_TrackObjects.Push(EntIndexToEntRef(ent));
+
+				int StartFrame = 0;
+				int FrameRate = 0;
+				float Life = 10.0;
+				float Width = convar_Pathing_Width.FloatValue;
+				//float EndWidth = convar_Pathing_Width.FloatValue;
+				//int FadeLength = 0;
+				float Amplitude = 0.0;
+				int Speed = 0;
+
+				float start_radius = convar_Point_Start_Radius.FloatValue;
+				float end_radius = convar_Point_End_Radius.FloatValue;
+				int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
+
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+				TE_SendToAll();
+				
 				continue;
 			}
 
@@ -1095,25 +1202,6 @@ void CreateTrackObjects() {
 			g_TrackObjects.Push(EntIndexToEntRef(ent));
 		}
 	}
-}
-
-public Action Timer_SpawnBot(Handle timer, DataPack pack) {
-	pack.Reset();
-
-	float origin[3]; float angles[3]; int skin;
-	pack.ReadCellArray(origin, sizeof(origin));
-	pack.ReadCellArray(angles, sizeof(angles));
-	skin = pack.ReadCell();
-
-	int ent = SpawnSurvivor(origin, angles, skin);
-	
-	if (!IsValidEntity(ent)) {
-		return Plugin_Stop;
-	}
-	
-	g_TrackObjects.Push(EntIndexToEntRef(ent));
-	
-	return Plugin_Stop;
 }
 
 void ClearTrackObjects() {

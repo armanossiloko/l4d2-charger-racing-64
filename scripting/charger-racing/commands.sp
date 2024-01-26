@@ -503,3 +503,22 @@ public Action Command_Ready(int client, int args) {
 
 	return Plugin_Handled;
 }
+
+public Action Command_Survivor(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (client < 1) {
+		ReplyToClient(client, "%T", "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	float origin[3];
+	GetClientCrosshairOrigin(client, origin);
+
+	SpawnSurvivor(origin, NULL_VECTOR, GetRandomInt(0, 7));
+	PrintToClient(client, "%T", "spawned survivor", client);
+
+	return Plugin_Handled;
+}

@@ -31,9 +31,11 @@ enum struct GameState {
 		StopTimer(this.ticker);
 		this.ticker = CreateTimer(1.0, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
-		KickBots();
-		CreatePathNodes();
-		CreateTrackObjects();
+		ClearEntities();
+
+		if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
+			SetTrack(0, false);
+		}
 
 		for (int i = 1; i <= MaxClients; i++) {
 			if (IsClientInGame(i)) {
@@ -54,7 +56,7 @@ enum struct GameState {
 		}
 
 		if (this.nexttrack != NO_TRACK) {
-			this.track = this.nexttrack;
+			SetTrack(this.nexttrack, false);
 			this.nexttrack = NO_TRACK;
 		}
 	}
@@ -94,7 +96,7 @@ enum struct GameState {
 		this.countdown = convar_Racing_Countdown.IntValue;
 		this.timer = convar_Racing_Timer.FloatValue;
 
-		KickBots();
+		ClearEntities();
 		CreatePathNodes();
 		CreateTrackObjects();
 	}

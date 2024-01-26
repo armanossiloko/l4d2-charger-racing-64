@@ -653,17 +653,20 @@ public int OnSortScores(int elem1, int elem2, const int[] array, Handle hndl) {
 	return 0;
 }
 
-void KickBots() {
-	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor) {
-			KickClient(i);
-		}
-	}
-
+void ClearEntities() {
+	DeleteBots();
 	DeleteItems();
 	DeleteDoors();
 	DeleteInfected();
 	DeleteElevators();
+}
+
+void DeleteBots() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor && g_TrackObjects.FindValue(EntIndexToEntRef(i)) == -1) {
+			KickClient(i);
+		}
+	}
 }
 
 void DeleteItems() {
@@ -836,13 +839,12 @@ int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character 
 	DispatchKeyValueVector(entity, "angles", angles);
 	DispatchKeyValueInt(entity, "character", character);
 
-	//By default, this entity doesn't allow us to spawn the L4D2 survivors as bots so we set them as L4D1 survivors by default then switch their model later.
-	if (character >= 0 && character <= 3) {
-		DispatchKeyValueInt(entity, "character", character + 4);
+	// If the character is less than 4, then we need to spawn the survivor as a L4D1 survivor.
+	if (character < 4) {
+		DispatchKeyValueInt(entity, "character", (character + 4));
 	}
 
 	DispatchSpawn(entity);
-
 	AcceptEntityInput(entity, "SpawnSurvivor");
 	RemoveEntity(entity);
 
@@ -853,35 +855,11 @@ int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character 
 		return -1;
 	}
 
-	DataPack pack;
-	CreateDataTimer(0.1, Timer_SetSurvivor, pack);
-	pack.WriteCell(EntIndexToEntRef(bot));
-	pack.WriteCellArray(origin, sizeof(origin));
-	pack.WriteCell(character);
-
-	return bot;
-}
-
-public Action Timer_SetSurvivor(Handle timer, DataPack pack) {
-	pack.Reset();
-
-	int ref = pack.ReadCell();
-	int bot = EntRefToEntIndex(ref);
-
-	float origin[3];
-	pack.ReadCellArray(origin, sizeof(origin));
-
-	int character = pack.ReadCell();
-
-	if (!IsValidEntity(bot)) {
-		return Plugin_Stop;
-	}
-
-	TeleportEntity(bot, origin, NULL_VECTOR, NULL_VECTOR);
 	SetCharacter(bot, character);
+	TeleportEntity(bot, origin, angles, NULL_VECTOR);
 	L4D2_SetEntityGlow(bot, L4D2Glow_Constant, 0, 5, view_as<int>({255, 0, 0}), true);
 
-	return Plugin_Stop;
+	return bot;
 }
 
 void SetCharacter(int entity, int character) {
@@ -936,7 +914,7 @@ void vCheatCommand(int client, char[] command, char[] arguments = "") {
 
 int FindLatestBot() {
 	for (int i = MaxClients; i > 0; --i) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !IsFakeClient(i) || g_TrackObjects.FindValue(i) != -1) {
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !IsFakeClient(i)) {
 			continue;
 		}
 

@@ -347,6 +347,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 			if (param2 == MenuCancel_ExitBack) {
 				OpenTrackEditorMenu(param1, id);
 			} else {
+				g_EditingNode[param1] = NO_NODE;
 				g_EditingTrack[param1] = NO_TRACK;
 			}
 		}

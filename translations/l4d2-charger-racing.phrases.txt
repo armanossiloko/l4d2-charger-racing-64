@@ -368,4 +368,34 @@
 	{
 		"en"	"Type !ready in order to ready up for the race."
 	}
+
+	"spawned survivor"
+	{
+		"en"	"You have spawned a temporary survivor."
+	}
+
+	"no object selected"
+	{
+		"en"	"You must select an object first."
+	}
+
+	"object removed"
+	{
+		"en"	"Object has been removed."
+	}
+
+	"object targeted"
+	{
+		"en"	"Object has been targeted."
+	}
+
+	"no object targeted"
+	{
+		"en"	"No object has been targeted."
+	}
+
+	"object origin updated"
+	{
+		"en"	"Object origin has been updated."
+	}
 }

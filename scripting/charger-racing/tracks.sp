@@ -721,7 +721,7 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 			} else if (StrEqual(sInfo, "nodes")) {
 				OpenNodeEditorMenu(param1, id);
 				return 0;
-			} else if (StrEqual(sInfo, "nodes")) {
+			} else if (StrEqual(sInfo, "objects")) {
 				OpenObjectEditorMenu(param1, id);
 				return 0;
 			}

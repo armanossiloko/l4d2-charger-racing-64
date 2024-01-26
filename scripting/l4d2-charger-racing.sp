@@ -13,7 +13,7 @@
 #include <charger_racing>
 
 //Defines
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.0.1"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -221,6 +221,9 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_stats", Command_Stats, "Shows your current statistics.");
 	RegConsoleCmd2("sm_ready", Command_Ready, "Ready up to play the next match.");
 
+	//General Commands
+	RegAdminCmd2("sm_survivor", Command_Survivor, ADMFLAG_ROOT, "Spawns a temporary survivor where you're looking.");
+
 	//Track Commands
 	RegAdminCmd2("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
 	RegAdminCmd2("sm_reloadtracks", Command_ReloadTracks, ADMFLAG_ROOT, "Reloads all tracks from the file.");
@@ -230,7 +233,7 @@ public void OnPluginStart() {
 	RegAdminCmd2("sm_edittrack", Command_EditTrack, ADMFLAG_ROOT, "Edit an existing track.");
 	RegAdminCmd2("sm_settrack", Command_SetTrack, ADMFLAG_ROOT, "Sets the current track.");
 
-	//Misc Admin Commands
+	//Race Commands
 	RegAdminCmd2("sm_start", Command_StartRace, ADMFLAG_ROOT, "Starts the race manually.");
 	RegAdminCmd2("sm_startrace", Command_StartRace, ADMFLAG_ROOT, "Starts the race manually.");
 	RegAdminCmd2("sm_end", Command_EndRace, ADMFLAG_ROOT, "Ends the race manually.");
@@ -369,13 +372,10 @@ public void OnConfigsExecuted() {
 			}
 		}
 
-		if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
-			SetTrack(0, false);
-		}
-
 		//Kick the bots on live load if there is any and set the state of the game to preparing.
-		KickBots();
+		DeleteBots();
 
+		//Start the preparing process automatically.
 		g_State.Preparing(2);
 	}
 
