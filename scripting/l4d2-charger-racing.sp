@@ -11,9 +11,10 @@
 #include <colors>
 
 #include <charger_racing>
+#include <l4d2_spawnSurvBotsHack>
 
 //Defines
-#define PLUGIN_VERSION "1.0.1"
+#define PLUGIN_VERSION "1.0.2"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -118,6 +119,8 @@ ArrayList g_TrackNodes;
 ArrayList g_TrackObjects;
 
 bool added[MAXPLAYERS + 1];
+
+int g_iLastSpawnClient;
 
 //Sub-Files
 #include "charger-racing/adminmenu.sp"
@@ -328,16 +331,19 @@ public void OnPluginEnd() {
 
 public void OnConfigsExecuted() {
 	//All of these ConVars are required for the mode to function, otherwise other ConVars are put into configuration files.
-	FindConVar("sb_all_bot_game").BoolValue = true;
 	FindConVar("allow_all_bot_survivor_team").BoolValue = true;
-	FindConVar("sb_unstick").BoolValue = false;
+	FindConVar("versus_special_respawn_interval").IntValue = 999999;
 	FindConVar("mp_gamemode").SetString("versus");
-	FindConVar("z_charge_duration").IntValue = 99999;
-	FindConVar("sb_dont_shoot").BoolValue = true;
 	FindConVar("director_no_survivor_bots").BoolValue = false;
-	FindConVar("vs_max_team_switches").IntValue = 999;
-	FindConVar("z_common_limit").IntValue = 0;
+	FindConVar("vs_max_team_switches").IntValue = 9999;
+	FindConVar("sv_allow_lobby_connect_only").BoolValue = false;
+	FindConVar("motd_enabled").BoolValue = false;
+	FindConVar("sb_all_bot_game").BoolValue = true;
+	FindConVar("sb_unstick").BoolValue = false;
+	FindConVar("sb_dont_shoot").BoolValue = true;
 	FindConVar("sb_stop").BoolValue = true;
+	FindConVar("z_charge_duration").IntValue = 99999;
+	FindConVar("z_common_limit").IntValue = 0;
 
 	char sParticle[64];
 	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
@@ -800,6 +806,10 @@ public void OnClientConnected(int client) {
 }
 
 public void OnClientPutInServer(int client) {
+	if (g_iLastSpawnClient == -1) {
+		g_iLastSpawnClient = GetClientUserId(client);
+	}
+
 	//No players should be taking damage in this mode unless specified.
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 }

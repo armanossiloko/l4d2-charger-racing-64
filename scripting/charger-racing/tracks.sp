@@ -463,7 +463,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);
 
 				g_NewObjectEnt[param1].Register(entity, origin, angles, model, scale, color, skin);
-				g_NewObjectEnt[param1].Create();
+				g_NewObjectEnt[param1].Create(ObjectType_Creating);
 
 				OpenAddObjectMenu(param1, Action_Create);
 				return 0;

@@ -398,4 +398,9 @@
 	{
 		"en"	"Object origin has been updated."
 	}
+
+	"failed to spawn survivor"
+	{
+		"en"	"Failed to spawn a temporary survivor."
+	}
 }

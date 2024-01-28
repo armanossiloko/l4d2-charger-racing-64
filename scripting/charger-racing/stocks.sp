@@ -1,8 +1,8 @@
-bool IsModeEnabled() {
+stock bool IsModeEnabled() {
 	return convar_Enabled.BoolValue;
 }
 
-void PrintToClient(int client, const char[] format, any ...) {
+stock void PrintToClient(int client, const char[] format, any ...) {
 	char mode[64];
 	GetModeName(g_State.mode, mode, sizeof(mode));
 
@@ -11,7 +11,7 @@ void PrintToClient(int client, const char[] format, any ...) {
 	CPrintToChat(client, "%T%s", "print tag", client, mode, buffer);
 }
 
-void PrintToClients(const char[] format, any ...) {
+stock void PrintToClients(const char[] format, any ...) {
 	char mode[64];
 	GetModeName(g_State.mode, mode, sizeof(mode));
 
@@ -20,7 +20,7 @@ void PrintToClients(const char[] format, any ...) {
 	CPrintToChatAll("%t%s", "print tag", mode, buffer);
 }
 
-void ReplyToClient(int client, const char[] format, any ...) {
+stock void ReplyToClient(int client, const char[] format, any ...) {
 	char mode[64];
 	GetModeName(g_State.mode, mode, sizeof(mode));
 
@@ -29,7 +29,7 @@ void ReplyToClient(int client, const char[] format, any ...) {
 	CReplyToCommand(client, "%T%s", "print tag", client, mode, buffer);
 }
 
-void PrintHintTextToClients(const char[] format, any ...) {
+stock void PrintHintTextToClients(const char[] format, any ...) {
 	char mode[64];
 	GetModeName(g_State.mode, mode, sizeof(mode));
 
@@ -38,7 +38,7 @@ void PrintHintTextToClients(const char[] format, any ...) {
 	PrintHintTextToAll("%t%s", "print tag no color", mode, buffer);
 }
 
-void ModeLog(const char[] format, any ...) {
+stock void ModeLog(const char[] format, any ...) {
 	char buffer[1024];
 	VFormat(buffer, sizeof(buffer), format, 2);
 
@@ -49,7 +49,7 @@ void ModeLog(const char[] format, any ...) {
 	PrintToServer("[Charger-Racing] %s", buffer);
 }
 
-void CreateFolders() {
+stock void CreateFolders() {
 	BuildPath(Path_SM, g_ConfigsFolder, sizeof(g_ConfigsFolder), "configs/charger-racing/");
 	if (!DirExists(g_ConfigsFolder)) {
 		CreateDirectory(g_ConfigsFolder, 511);
@@ -66,7 +66,7 @@ void CreateFolders() {
 	}
 }
 
-void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] format, bool precision = false) {
+stock void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] format, bool precision = false) {
 	int t = RoundToFloor(seconds);
 
 	int day; char sDay[32];
@@ -111,7 +111,7 @@ void FormatSeconds(float seconds, char[] buffer, int maxlength, const char[] for
 	ReplaceString(buffer, maxlength, "%S", strlen(sSeconds) > 0 ? sSeconds : "00");
 }
 
-bool StopTimer(Handle& timer) {
+stock bool StopTimer(Handle& timer) {
 	if (timer != null) {
 		KillTimer(timer);
 		timer = null;
@@ -121,7 +121,7 @@ bool StopTimer(Handle& timer) {
 	return false;
 }
 
-bool StringToColor(const char[] explode, int buffer[4], int defaultvalues[4] = {255, 255, 255, 255}) {
+stock bool StringToColor(const char[] explode, int buffer[4], int defaultvalues[4] = {255, 255, 255, 255}) {
 	if (strlen(explode) == 0) {
 		buffer[0] = defaultvalues[0]; buffer[1] = defaultvalues[1]; buffer[2] = defaultvalues[2]; buffer[3] = defaultvalues[3];
 		return false;
@@ -178,7 +178,7 @@ public bool TraceEntityFilterNone(int entity, int contentsMask, any data) {
 	return entity != data;
 }
 
-void DropVictim(int client, int target, int stagger = 3)
+stock void DropVictim(int client, int target, int stagger = 3)
 {
 	//Needs to be called otherwise it crashes.
 	SDKCall(g_GameData.OnPummelEnded, client, "", target);
@@ -242,7 +242,7 @@ public Action TimerFixAnim(Handle timer, int target)
 	return Plugin_Continue;
 }
 
-void StaggerClient(int userid, float vPos[3])
+stock void StaggerClient(int userid, float vPos[3])
 {
 	userid = GetClientUserId(userid);
 	int logic = CreateEntityByName("logic_script");
@@ -260,7 +260,7 @@ void StaggerClient(int userid, float vPos[3])
 	RemoveEntity(logic);
 }
 
-bool PushMenuInt(Menu menu, const char[] id, int value) {
+stock bool PushMenuInt(Menu menu, const char[] id, int value) {
 	if (menu == null || strlen(id) == 0) {
 		return false;
 	}
@@ -270,7 +270,7 @@ bool PushMenuInt(Menu menu, const char[] id, int value) {
 	return menu.AddItem(id, sBuffer, ITEMDRAW_IGNORE);
 }
 
-int GetMenuInt(Menu menu, const char[] id, int defaultvalue = 0) {
+stock int GetMenuInt(Menu menu, const char[] id, int defaultvalue = 0) {
 	if (menu == null || strlen(id) == 0) {
 		return defaultvalue;
 	}
@@ -286,14 +286,14 @@ int GetMenuInt(Menu menu, const char[] id, int defaultvalue = 0) {
 }
 
 //Returns the speed of the client based on velocity.
-float GetSpeed(int client) {
+stock float GetSpeed(int client) {
 	float vVel[3];
 	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVel);
 	return SquareRoot(Pow(vVel[0], 2.0) + Pow(vVel[1], 2.0));
 }
 
 //Returns the origin of the client with an offset.
-float[] GetOrigin(int client, float offset = 0.0) { 
+stock float[] GetOrigin(int client, float offset = 0.0) { 
 	float origin[3];
 	GetClientAbsOrigin(client, origin);
 	origin[2] += offset;
@@ -301,7 +301,7 @@ float[] GetOrigin(int client, float offset = 0.0) {
 }
 
 //Returns the distance between two vectors.
-float GetDistance(float origin1[3], float origin2[3]) {
+stock float GetDistance(float origin1[3], float origin2[3]) {
 	return GetVectorDistance(origin1, origin2);
 }
 
@@ -319,11 +319,11 @@ stock int GetTeamAliveCount(int team) {
 	return count;
 }
 
-bool StringToBool(const char[] str) {
+stock bool StringToBool(const char[] str) {
 	return view_as<bool>(StringToInt(str));
 }
 
-void GetCharacterName(int index, char[] buffer, int size) {
+stock void GetCharacterName(int index, char[] buffer, int size) {
 	switch (index) {
 		case 0:		// Nick
 		{
@@ -360,7 +360,7 @@ void GetCharacterName(int index, char[] buffer, int size) {
 	}
 }
 
-int[] GetConVarColor(ConVar convar) {
+stock int[] GetConVarColor(ConVar convar) {
 	int colors[4] = {255, 255, 255, 255};
 
 	char sBuffer[128];
@@ -380,7 +380,7 @@ int[] GetConVarColor(ConVar convar) {
 	return colors;
 }
 
-void GetStateDisplayName(Status state, char[] buffer, int size) {
+stock void GetStateDisplayName(Status state, char[] buffer, int size) {
 	switch (state) {
 		case STATUS_NONE: {
 			strcopy(buffer, size, "None");
@@ -400,7 +400,7 @@ void GetStateDisplayName(Status state, char[] buffer, int size) {
 	}
 }
 
-void LookAtPoint(int client, float point[3]){
+stock void LookAtPoint(int client, float point[3]){
 	float angles[3]; float clientEyes[3]; float resultant[3];
 	GetClientEyePosition(client, clientEyes);
 	MakeVectorFromPoints(point, clientEyes, resultant);
@@ -417,7 +417,7 @@ void LookAtPoint(int client, float point[3]){
 	TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
 }
 
-int FindAvailablePlayer() {
+stock int FindAvailablePlayer() {
 	int[] clients = new int[MaxClients];
 	int total;
 
@@ -436,7 +436,7 @@ int FindAvailablePlayer() {
 	return clients[GetRandomInt(0, total - 1)];
 }
 
-bool IsPlayersAvailable() {
+stock bool IsPlayersAvailable() {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && !IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
 			return true;
@@ -446,7 +446,7 @@ bool IsPlayersAvailable() {
 	return false;
 }
 
-int GetTotalPlayers() {
+stock int GetTotalPlayers() {
 	int amount;
 
 	for (int i = 1; i <= MaxClients; i++) {
@@ -464,7 +464,7 @@ public int MenuAction_Void(Menu menu, MenuAction action, int param1, int param2)
 	return 0;
 }
 
-bool AllPlayersFinished() {
+stock bool AllPlayersFinished() {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (g_Player[i].playing && !g_Player[i].finished && !IsFakeClient(i)) {
 			return false;
@@ -482,7 +482,7 @@ stock bool IsPlayersPlaying() {
 	return false;
 }
 
-int GetWinnerForSingles() {
+stock int GetWinnerForSingles() {
 	int winner = -1;
 
 	for (int i = 1; i <= MaxClients; i++) {
@@ -503,7 +503,7 @@ int GetWinnerForSingles() {
 	return winner;
 }
 
-int GetWinnerGroup() {
+stock int GetWinnerGroup() {
 	int winner = -1;
 	int winnerpoints;
 	int points;
@@ -534,7 +534,7 @@ int GetWinnerGroup() {
 	return winner;
 }
 
-void TeleportToSurvivorPos(int client) {
+stock void TeleportToSurvivorPos(int client) {
 	int positions[16];
 	int total;
 
@@ -559,7 +559,7 @@ void TeleportToSurvivorPos(int client) {
 	TeleportEntity(client, vecOrigin, NULL_VECTOR, NULL_VECTOR);
 }
 
-void GetDifficultyName(Difficulty difficulty, char[] buffer, int size) {
+stock void GetDifficultyName(Difficulty difficulty, char[] buffer, int size) {
 	switch (difficulty) {
 		case DIFFICULTY_EASY: {
 			strcopy(buffer, size, "Easy");
@@ -583,7 +583,7 @@ void GetDifficultyName(Difficulty difficulty, char[] buffer, int size) {
 	}
 }
 
-int GetGroupScore(int group) {
+stock int GetGroupScore(int group) {
 	int[] players = new int[MaxClients];
 	g_Groups.GetGroupMembers(group, players);
 
@@ -607,7 +607,7 @@ int GetGroupScore(int group) {
 	return score;
 }
 
-int GetTopScores(int max, int[] clients, int[] scores, bool finished = false) {
+stock int GetTopScores(int max, int[] clients, int[] scores, bool finished = false) {
 	int total = max;
 
 	int val;
@@ -653,7 +653,7 @@ public int OnSortScores(int elem1, int elem2, const int[] array, Handle hndl) {
 	return 0;
 }
 
-void ClearEntities() {
+stock void ClearEntities() {
 	DeleteBots();
 	DeleteItems();
 	DeleteDoors();
@@ -661,7 +661,7 @@ void ClearEntities() {
 	DeleteElevators();
 }
 
-void DeleteBots() {
+stock void DeleteBots() {
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsClientInGame(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor && g_TrackObjects.FindValue(EntIndexToEntRef(i)) == -1) {
 			KickClient(i);
@@ -669,7 +669,7 @@ void DeleteBots() {
 	}
 }
 
-void DeleteItems() {
+stock void DeleteItems() {
 	if (!convar_Spawns_Items.BoolValue) {
 		return;
 	}
@@ -690,7 +690,7 @@ void DeleteItems() {
 	}
 }
 
-void DeleteDoors() {
+stock void DeleteDoors() {
 	if (!convar_Spawns_Doors.BoolValue) {
 		return;
 	}
@@ -713,7 +713,7 @@ void DeleteDoors() {
 	}
 }
 
-void DeleteInfected() {
+stock void DeleteInfected() {
 	if (!convar_Spawns_Infected.BoolValue) {
 		return;
 	}
@@ -724,7 +724,7 @@ void DeleteInfected() {
 	}
 }
 
-void DeleteElevators() {
+stock void DeleteElevators() {
 	if (!convar_Spawns_Infected.BoolValue) {
 		return;
 	}
@@ -735,7 +735,7 @@ void DeleteElevators() {
 	}
 }
 
-bool IsStringNumeric(const char[] str) {
+stock bool IsStringNumeric(const char[] str) {
 	int x = 0;
 	int dotsFound = 0;
 	int numbersFound = 0;
@@ -763,7 +763,7 @@ bool IsStringNumeric(const char[] str) {
 	return numbersFound > 0;
 }
 
-int FindValueInADTArray(any[] array, int size, any value, int start = 0) {
+stock int FindValueInADTArray(any[] array, int size, any value, int start = 0) {
 	if (start < 0) {
 		start = 0;
 	}
@@ -799,7 +799,7 @@ stock int FindTargetEx(int client, const char[] target, bool nobots = false, boo
 	return -1;
 }
 
-int GetReadyPlayers() {
+stock int GetReadyPlayers() {
 	int count;
 
 	for (int i = 1; i <= MaxClients; i++) {
@@ -813,13 +813,13 @@ int GetReadyPlayers() {
 	return count;
 }
 
-char[] ParseColor(int color[4]) {
+stock char[] ParseColor(int color[4]) {
 	char buffer[32];
 	Format(buffer, sizeof(buffer), "%d %d %d %d", color[0], color[1], color[2], color[3]);
 	return buffer;
 }
 
-bool DeleteEntity(int entity) {
+stock bool DeleteEntity(int entity) {
 	if (!IsValidEntity(entity) || entity < 1) {
 		return false;
 	}
@@ -828,41 +828,36 @@ bool DeleteEntity(int entity) {
 	return true;
 }
 
-int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character = 0) {
-	int entity = CreateEntityByName("info_l4d1_survivor_spawn");
+stock int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character = 0, ObjectType type) {
+	//TODO: Move this functionality back into the main plugin and remove the dependency.
+	int bot_client_id = L4D2_CreateSurvivorBot_Hack(origin, character);
 
-	if (!IsValidEntity(entity)) {
-		return entity;
-	}
-	
-	DispatchKeyValueVector(entity, "origin", origin);
-	DispatchKeyValueVector(entity, "angles", angles);
-	DispatchKeyValueInt(entity, "character", character);
-
-	// If the character is less than 4, then we need to spawn the survivor as a L4D1 survivor.
-	if (character < 4) {
-		DispatchKeyValueInt(entity, "character", (character + 4));
+	if (!IsPlayerAlive(bot_client_id)) {
+		L4D_RespawnPlayer(bot_client_id);
 	}
 
-	DispatchSpawn(entity);
-	AcceptEntityInput(entity, "SpawnSurvivor");
-	RemoveEntity(entity);
+	SetCharacter(bot_client_id, character);
+	TeleportEntity(bot_client_id, origin, angles, NULL_VECTOR);
 
-	//Find the bot we just spawned from the entity.
-	int bot = FindLatestBot();
-
-	if (bot == -1) {
-		return -1;
+	int color[3];
+	switch (type) {
+		case ObjectType_Creating: {
+			color[0] = 255; color[1] = 255; color[2] = 0;
+		}
+		case ObjectType_Editing: {
+			color[0] = 0; color[1] = 255; color[2] = 0;
+		}
+		case ObjectType_Active: {
+			color[0] = 0; color[1] = 0; color[2] = 255;
+		}
 	}
 
-	SetCharacter(bot, character);
-	TeleportEntity(bot, origin, angles, NULL_VECTOR);
-	L4D2_SetEntityGlow(bot, L4D2Glow_Constant, 0, 5, view_as<int>({255, 0, 0}), true);
+	L4D2_SetEntityGlow(bot_client_id, L4D2Glow_Constant, 0, 5, color, true);
 
-	return bot;
+	return bot_client_id;
 }
 
-void SetCharacter(int entity, int character) {
+stock void SetCharacter(int entity, int character) {
 	switch (character) {
 		case 0: {
 			SetClientName(entity, "Nick");
@@ -905,21 +900,9 @@ void SetCharacter(int entity, int character) {
 	}
 }
 
-void vCheatCommand(int client, char[] command, char[] arguments = "") {
+stock void vCheatCommand(int client, char[] command, char[] arguments = "") {
 	int iCmdFlags = GetCommandFlags(command);
 	SetCommandFlags(command, iCmdFlags & ~FCVAR_CHEAT);
 	FakeClientCommand(client, "%s %s", command, arguments);
 	SetCommandFlags(command, iCmdFlags | FCVAR_CHEAT);
-}
-
-int FindLatestBot() {
-	for (int i = MaxClients; i > 0; --i) {
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !IsFakeClient(i)) {
-			continue;
-		}
-
-		return i;
-	}
-
-	return -1;
 }

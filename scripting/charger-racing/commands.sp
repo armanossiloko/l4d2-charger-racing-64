@@ -517,7 +517,13 @@ public Action Command_Survivor(int client, int args) {
 	float origin[3];
 	GetClientCrosshairOrigin(client, origin);
 
-	SpawnSurvivor(origin, NULL_VECTOR, GetRandomInt(0, 7));
+	int bot = SpawnSurvivor(origin, NULL_VECTOR, GetRandomInt(0, 7), ObjectType_Temporary);
+
+	if (!IsValidEntity(bot)) {
+		PrintToClient(client, "%T", "failed to spawn survivor", client);
+		return Plugin_Handled;
+	}
+
 	PrintToClient(client, "%T", "spawned survivor", client);
 
 	return Plugin_Handled;

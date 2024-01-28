@@ -1,3 +1,10 @@
+enum ObjectType {
+	ObjectType_Creating,
+	ObjectType_Editing,
+	ObjectType_Active,
+	ObjectType_Temporary,
+}
+
 enum struct Object {
 	char entity[64];
 	float origin[3];
@@ -29,11 +36,11 @@ enum struct Object {
 		this.skin = 0;
 	}
 
-	void Create() {
+	void Create(ObjectType type) {
 		this.Delete();
 
 		if (StrEqual(this.entity, "info_l4d1_survivor_spawn")) {
-			this.index = SpawnSurvivor(this.origin, this.angles, this.skin);
+			this.index = SpawnSurvivor(this.origin, this.angles, this.skin, type);
 		} else {
 			this.index = CreateEntityByName(this.entity);
 		}
@@ -53,10 +60,10 @@ enum struct Object {
 		ActivateEntity(this.index);
 	}
 
-	void SetEntity(const char[] entity) {
+	void SetEntity(const char[] entity, ObjectType type) {
 		strcopy(this.entity, sizeof(Object::entity), entity);
 		this.Delete();
-		this.Create();
+		this.Create(type);
 	}
 
 	void SetOrigin(float origin[3]) {
@@ -506,7 +513,7 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 
 					g_CreatingTrack[param1].SetObjectEntity(obj, sEntity);
 
-					g_NewObjectEnt[param1].SetEntity(sEntity);
+					g_NewObjectEnt[param1].SetEntity(sEntity, ObjectType_Creating);
 
 					OpenObjectEntitiesMenu(param1, trackaction);
 				}
@@ -1152,14 +1159,21 @@ void CreateTrackObjects() {
 	}
 
 	if (convar_Objects.BoolValue) {
+		//float test;
 		for (int i = 0; i < g_Tracks[track].GetTotalObjects(); i++) {
 
 			char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 			g_Tracks[track].GetObject(i, entity, origin, angles, model, scale, color, skin);
 
 			if (StrEqual(entity, "info_l4d1_survivor_spawn", false)) {
-				PrintToServer("Creating survivor %i: %s %.2f/%.2f/%.2f", i, entity, origin[0], origin[1], origin[2]);
-				int ent = SpawnSurvivor(origin, angles, skin);
+				//PrintToServer("Creating survivor %i: [Entity: %s] [Origin: %.2f/%.2f/%.2f] [Angles: %.2f/%.2f/%.2f] [Skin: %i]", i, entity, origin[0], origin[1], origin[2], angles[0], angles[1], angles[2], skin);
+				
+				int ent = SpawnSurvivor(origin, angles, skin, ObjectType_Active);				
+
+				if (!IsValidEntity(ent)) {
+					continue;
+				}
+
 				g_TrackObjects.Push(EntIndexToEntRef(ent));
 
 				int StartFrame = 0;
@@ -1177,7 +1191,7 @@ void CreateTrackObjects() {
 
 				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
 				TE_SendToAll();
-				
+
 				continue;
 			}
 
