@@ -403,4 +403,14 @@
 	{
 		"en"	"Failed to spawn a temporary survivor."
 	}
+
+	"must be in waiting phase"
+	{
+		"en"	"This command is only allowed to be used during the waiting phase."
+	}
+
+	"must prepare race manually"
+	{
+		"en"	"Start the race by typing {olive}!preparerace {default}in chat."
+	}
 }

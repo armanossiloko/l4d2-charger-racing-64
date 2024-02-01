@@ -69,6 +69,7 @@ ConVar convar_Point_Current_Color;
 ConVar convar_Point_End_Color;
 ConVar convar_Skip_Nodes;
 ConVar convar_Node_Radius;
+ConVar convar_NewRoundState;
 
 //General
 char g_ConfigsFolder[PLATFORM_MAX_PATH];
@@ -121,6 +122,8 @@ ArrayList g_TrackObjects;
 bool added[MAXPLAYERS + 1];
 
 int g_iLastSpawnClient;
+
+bool g_IsTemporarySurvivor[MAXPLAYERS + 1];
 
 //Sub-Files
 #include "charger-racing/adminmenu.sp"
@@ -195,6 +198,7 @@ public void OnPluginStart() {
 	convar_Point_End_Color = CreateConVar("sm_l4d2_charger_racing_end_color", "0, 0, 255, 255", "What should the color of the end node be?", FCVAR_NOTIFY);
 	convar_Skip_Nodes = CreateConVar("sm_l4d2_charger_racing_skip_nodes", "1", "Should we calculate and deduct points for players skipping nodes?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Node_Radius = CreateConVar("sm_l4d2_charger_racing_node_radius", "100", "How many units should nodes be interacted with in terms of size?", FCVAR_NOTIFY, true, 0.0);
+	convar_NewRoundState = CreateConVar("sm_l4d2_charger_racing_new_round_state", "1", "Wait for players to type in chat to manually prepare the next race or prepare it automatically?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	AutoExecConfig();
 
 	//ConVar Change Hooks
@@ -223,6 +227,7 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_track", Command_Track, "Prints out to chat which track is currently set.");
 	RegConsoleCmd2("sm_stats", Command_Stats, "Shows your current statistics.");
 	RegConsoleCmd2("sm_ready", Command_Ready, "Ready up to play the next match.");
+	RegConsoleCmd2("sm_preparerace", Command_PrepareRace, "Starts the preparation phase manually.");
 
 	//General Commands
 	RegAdminCmd2("sm_survivor", Command_Survivor, ADMFLAG_ROOT, "Spawns a temporary survivor where you're looking.");
@@ -930,6 +935,14 @@ public void OnEntityCreated(int entity, const char[] classname) {
 	}
 }
 
+public void OnEntityDestroyed(int entity) {
+	if (entity < 1) {
+		return;
+	}
+
+	g_IsTemporarySurvivor[entity] = false;
+}
+
 public void OnItemSpawned(int entity) {
 	CreateTimer(0.5, Timer_DeleteItem, EntIndexToEntRef(entity));
 }
@@ -975,6 +988,12 @@ public void Frame_DelayFinish(any data) {
 }
 
 public Action Timer_Prepare(Handle timer) {
-	g_State.Preparing(4);
+	if (convar_NewRoundState.BoolValue) {
+		g_State.None(3);
+		PrintToClients("%t", "must prepare race manually");
+	} else {
+		g_State.Preparing(4);
+	}
+
 	return Plugin_Continue;
 }

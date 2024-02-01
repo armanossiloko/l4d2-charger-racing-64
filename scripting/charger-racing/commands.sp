@@ -524,7 +524,23 @@ public Action Command_Survivor(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	g_IsTemporarySurvivor[bot] = true;
 	PrintToClient(client, "%T", "spawned survivor", client);
+
+	return Plugin_Handled;
+}
+
+public Action Command_PrepareRace(int client, int args) {
+	if (!IsModeEnabled()) {
+		return Plugin_Continue;
+	}
+
+	if (g_State.status != STATUS_NONE) {
+		ReplyToClient(client, "%T", "must be in waiting phase", client);
+		return Plugin_Handled;
+	}
+
+	g_State.Preparing(5);
 
 	return Plugin_Handled;
 }

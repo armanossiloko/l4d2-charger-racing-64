@@ -53,8 +53,9 @@ void IsNearNode(int client, int index) {
 		g_Player[client].speeds.Clear();
 
 		//If we're carrying a survivor, give our points a multiplier.
-		if (L4D2_GetInfectedAttacker(client) != -1) {
-			points *= 1.20;
+		int bot = -1;
+		if ((bot = L4D2_GetInfectedAttacker(client)) != -1) {
+			points *= g_IsTemporarySurvivor[bot] ? 0.80 : 1.20;
 		}
 
 		//Give the points and update the hud.
@@ -75,8 +76,10 @@ void IsNearFinish(int client) {
 
 	int points = g_Points.Get(g_State.mode, "finished");
 
-	if (L4D2_GetInfectedAttacker(client) != -1) {
-		points += g_Points.Get(g_State.mode, "survivor");
+	int bot = -1;
+	if ((bot = L4D2_GetInfectedAttacker(client)) != -1) {
+		int temp = g_Points.Get(g_State.mode, "survivor");
+		points += g_IsTemporarySurvivor[bot] ? RoundFloat(float(temp) * 0.80) : temp;
 	}
 
 	g_Player[client].AddPoints(points);
@@ -101,8 +104,10 @@ void IsNearFinish(int client) {
 				} else {
 					points = g_Points.Get(g_State.mode, "winner");
 
-					if (L4D2_GetInfectedAttacker(winner) != -1) {
-						points += g_Points.Get(g_State.mode, "survivor");
+					bot = -1;
+					if ((bot = L4D2_GetInfectedAttacker(winner)) != -1) {
+						int temp = g_Points.Get(g_State.mode, "survivor");
+						points += g_IsTemporarySurvivor[bot] ? RoundFloat(float(temp) * 0.80) : temp;
 					}
 					
 					g_Player[winner].AddPoints(points);
@@ -141,8 +146,10 @@ void IsNearFinish(int client) {
 							continue;
 						}
 
-						if (L4D2_GetInfectedAttacker(player) != -1) {
-							temp += g_Points.Get(g_State.mode, "survivor");
+						bot = -1;
+						if ((bot = L4D2_GetInfectedAttacker(player)) != -1) {
+							int temp2 = g_Points.Get(g_State.mode, "survivor");
+							temp += g_IsTemporarySurvivor[bot] ? RoundFloat(float(temp2) * 0.80) : temp2;
 						}
 
 						g_Player[player].AddPoints(temp);
