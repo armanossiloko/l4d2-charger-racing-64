@@ -459,7 +459,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 					origin = GetOrigin(param1, 10.0);
 				}
 
-				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale = 1.0; int color[4] = {255, 255, 255, 255}; int skin;
+				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH] = DEFAULT_OBJECT; float scale = 1.0; int color[4] = {255, 255, 255, 255}; int skin;
 				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);
 
 				g_NewObjectEnt[param1].Register(entity, origin, angles, model, scale, color, skin);
