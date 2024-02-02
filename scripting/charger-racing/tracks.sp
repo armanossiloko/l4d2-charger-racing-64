@@ -455,7 +455,9 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				g_NewObj[param1] = g_CreatingTrack[param1].GetTotalObjects();
 
 				float origin[3];
-				GetClientCrosshairOrigin(param1, origin);
+				if (!GetClientCrosshairOrigin(param1, origin)) {
+					origin = GetOrigin(param1, 10.0);
+				}
 
 				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale = 1.0; int color[4] = {255, 255, 255, 255}; int skin;
 				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);

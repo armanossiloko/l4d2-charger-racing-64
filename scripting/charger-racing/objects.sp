@@ -36,17 +36,17 @@ enum struct Object {
 		this.skin = 0;
 	}
 
-	void Create(ObjectType type) {
+	int Create(ObjectType type) {
 		this.Delete();
 
 		if (StrEqual(this.entity, "info_l4d1_survivor_spawn")) {
-			this.index = SpawnSurvivor(this.origin, this.angles, this.skin, type);
+			return this.index = SpawnSurvivor(this.origin, this.angles, this.skin, type);
 		} else {
 			this.index = CreateEntityByName(this.entity);
 		}
 
 		if (!IsValidEntity(this.index)) {
-			return;
+			return -1;
 		}
 
 		DispatchKeyValueVector(this.index, "origin", this.origin);
@@ -58,6 +58,8 @@ enum struct Object {
 
 		DispatchSpawn(this.index);
 		ActivateEntity(this.index);
+
+		return this.index;
 	}
 
 	void SetEntity(const char[] entity, ObjectType type) {
@@ -248,7 +250,9 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 						return 0;
 					} else if (StrEqual(sInfo, "origin")) {
 						float origin[3];
-						GetClientCrosshairOrigin(param1, origin);
+						if (!GetClientCrosshairOrigin(param1, origin)) {
+							origin = GetOrigin(param1, 10.0);
+						}
 						g_CreatingTrack[param1].SetObjectOrigin(obj, origin);
 						g_NewObjectEnt[param1].SetOrigin(origin);
 					} else if (StrEqual(sInfo, "angles")) {
@@ -372,7 +376,9 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 				g_EditingObj[param1] = g_Tracks[id].GetTotalObjects();
 
 				float origin[3];
-				GetClientCrosshairOrigin(param1, origin);
+				if (!GetClientCrosshairOrigin(param1, origin)) {
+					origin = GetOrigin(param1, 10.0);
+				}
 
 				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 				g_Tracks[id].AddObject(entity, origin, angles, model, scale, color, skin);
@@ -406,7 +412,9 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 
 				if (obj != NO_OBJECT) {
 					float origin[3];
-					GetClientCrosshairOrigin(param1, origin);
+					if (!GetClientCrosshairOrigin(param1, origin)) {
+						origin = GetOrigin(param1, 10.0);
+					}
 					g_Tracks[id].SetObjectOrigin(obj, origin);
 					PrintToClient(param1, "%T", "object origin updated", param1);
 				} else {

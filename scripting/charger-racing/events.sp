@@ -20,7 +20,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	int userid = event.GetInt("userid");
 	int client = GetClientOfUserId(userid);
 
-	if (client < 1) {
+	if (client < 1 || IsFakeClient(client)) {
 		return;
 	}
 
@@ -28,14 +28,12 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 		PrintToClient(client, "%T", "type ready", client);
 	}
 
-	if (!IsFakeClient(client)) {
-		if (g_MapStarted) {
-			g_MapStarted = false;
+	if (g_MapStarted) {
+		g_MapStarted = false;
 
-			for (int i = 1; i <= MaxClients; i++) {
-				if (IsClientInGame(i) && IsFakeClient(i)) {
-					KickClient(i);
-				}
+		for (int i = 1; i <= MaxClients; i++) {
+			if (IsClientInGame(i) && IsFakeClient(i)) {
+				KickClient(i);
 			}
 		}
 	}

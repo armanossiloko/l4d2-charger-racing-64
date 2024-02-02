@@ -515,7 +515,9 @@ public Action Command_Survivor(int client, int args) {
 	}
 
 	float origin[3];
-	GetClientCrosshairOrigin(client, origin);
+	if (!GetClientCrosshairOrigin(client, origin)) {
+		origin = GetOrigin(client, 10.0);
+	}
 
 	int bot = SpawnSurvivor(origin, NULL_VECTOR, GetRandomInt(0, 7), ObjectType_Temporary);
 
