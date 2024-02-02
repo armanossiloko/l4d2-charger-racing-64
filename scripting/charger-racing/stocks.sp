@@ -144,11 +144,9 @@ stock bool GetClientCrosshairOrigin(int client, float pOrigin[3], bool filter_pl
 	if (client == 0 || client > MaxClients || !IsClientInGame(client))
 		return false;
 
-	float vOrigin[3];
-	GetClientEyePosition(client,vOrigin);
+	float vOrigin[3]; vOrigin = GetEyePosition(client);
 
-	float vAngles[3];
-	GetClientEyeAngles(client, vAngles);
+	float vAngles[3]; vAngles = GetEyeAngles(client);
 
 	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, filter_players ? TraceEntityFilterPlayer : TraceEntityFilterNone, client);
 	bool bReturn = TR_DidHit(trace);
@@ -212,13 +210,13 @@ stock void DropVictim(int client, int target, int stagger = 3)
 	// Stagger
 	if( stagger & (1<<0) )
 	{
-		GetClientEyePosition(target, vPos);
+		vPos = GetEyePosition(target);
 		StaggerClient(client, vPos);
 	}
 
 	if( stagger & (1<<1) )
 	{
-		GetClientEyePosition(client, vPos);
+		vPos = GetEyePosition(client);
 		StaggerClient(target, vPos);
 	}
 }
@@ -232,8 +230,7 @@ public Action TimerFixAnim(Handle timer, int target)
 		// "ACT_TERROR_FALL" sequence number
 		if( seq == 650 || seq == 665 || seq == 661 || seq == 651 || seq == 554 || seq == 551 ) // Coach, Ellis, Nick, Rochelle, Francis/Zoey, Bill/Louis
 		{
-			float vPos[3];
-			vPos = GetOrigin(target);
+			float vPos[3]; vPos = GetOrigin(target);
 			SetEntityMoveType(target, MOVETYPE_WALK);
 			TeleportEntity(target, vPos, NULL_VECTOR, view_as<float>({0.0, 0.0, 0.0}));
 		}
@@ -298,6 +295,27 @@ stock float[] GetOrigin(int client, float offset = 0.0) {
 	GetClientAbsOrigin(client, origin);
 	origin[2] += offset;
 	return origin;
+}
+
+//Returns the angles of the client.
+stock float[] GetAngles(int client) {
+	float angles[3];
+	GetClientAbsAngles(client, angles);
+	return angles;
+}
+
+//Returns the eye position of the client.
+stock float[] GetEyePosition(int client) {
+	float origin[3];
+	GetClientEyePosition(client, origin);
+	return origin;
+}
+
+//Returns the eye angles of the client.
+stock float[] GetEyeAngles(int client) {
+	float angles[3];
+	GetClientEyeAngles(client, angles);
+	return angles;
 }
 
 //Returns the distance between two vectors.
@@ -402,7 +420,7 @@ stock void GetStateDisplayName(Status state, char[] buffer, int size) {
 
 stock void LookAtPoint(int client, float point[3]){
 	float angles[3]; float clientEyes[3]; float resultant[3];
-	GetClientEyePosition(client, clientEyes);
+	clientEyes = GetEyePosition(client);
 	MakeVectorFromPoints(point, clientEyes, resultant);
 	GetVectorAngles(resultant, angles);
 	if (angles[0] >= 270){

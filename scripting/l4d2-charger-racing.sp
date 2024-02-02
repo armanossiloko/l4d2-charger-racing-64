@@ -442,8 +442,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		if (convar_Strafing.BoolValue) {
 			//Strafing left and right handling.
 			if ((buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT)) {
-				float vAng[3];
-				GetClientEyeAngles(client, vAng);
+				float vAng[3]; vAng = GetEyeAngles(client);
 
 				float vVec[3];
 				GetAngleVectors(vAng, NULL_VECTOR, vVec, NULL_VECTOR);
@@ -479,8 +478,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	float Amplitude = 0.0;
 	int Speed = 0;
 
-	float pos[3];
-	GetClientEyePosition(client, pos);
+	float pos[3]; pos = GetEyePosition(client);
 
 	float cull_distance = convar_Track_Culling.FloatValue;
 

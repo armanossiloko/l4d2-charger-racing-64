@@ -247,8 +247,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 					int node = g_NewNode[param1];
 					
 					if (StrEqual(sInfo, "position")) {
-						float origin[3];
-						origin = GetOrigin(param1, 10.0);
+						float origin[3]; origin = GetOrigin(param1, 10.0);
 						g_CreatingTrack[param1].SetNodeOrigin(node, origin);
 					} else if (StrEqual(sInfo, "color")) {
 						OpenNodeColorsMenu(param1, Action_Create);
@@ -266,8 +265,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 					int node = g_EditingNode[param1];
 
 					if (StrEqual(sInfo, "position")) {
-						float origin[3];
-						origin = GetOrigin(param1, 10.0);
+						float origin[3]; origin = GetOrigin(param1, 10.0);
 						g_Tracks[id].SetNodeOrigin(node, origin);
 					} else if (StrEqual(sInfo, "color")) {
 						OpenNodeColorsMenu(param1, Action_Edit);
@@ -325,8 +323,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 			if (StrEqual(sInfo, "add")) {
 				g_EditingNode[param1] = g_Tracks[id].GetTotalNodes();
 
-				float origin[3];
-				origin = GetOrigin(param1, 10.0);
+				float origin[3]; origin = GetOrigin(param1, 10.0);
 
 				int color[4] = {255, 255, 255, 255};
 				g_Tracks[id].AddNode(origin, color);
@@ -339,8 +336,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 				int node = g_EditingNode[param1];
 				g_Tracks[id].DeleteNode(node);
 			} else if (StrEqual(sInfo, "move")) {
-				float origin[3];
-				origin = GetOrigin(param1, 10.0);
+				float origin[3]; origin = GetOrigin(param1, 10.0);
 				g_Tracks[id].GetNodeOrigin(g_EditingNode[param1], origin);
 			} else if (StrEqual(sInfo, "color")) {
 				OpenNodeColorsMenu(param1, Action_Edit);
@@ -368,8 +364,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 }
 
 int GetNearestNode(int client, int id) {
-	float origin[3];
-	origin = GetOrigin(client);
+	float origin[3]; origin = GetOrigin(client);
 
 	int node = NO_NODE;
 	float origin2[3]; float origin3[3];

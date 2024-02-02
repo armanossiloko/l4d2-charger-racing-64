@@ -284,8 +284,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 						OpenObjectEntitiesMenu(param1, Action_Edit);
 						return 0;
 					} else if (StrEqual(sInfo, "origin")) {
-						float origin[3];
-						origin = GetOrigin(param1, 10.0);
+						float origin[3]; origin = GetOrigin(param1, 10.0);
 						g_Tracks[id].SetObjectOrigin(obj, origin);
 					} else if (StrEqual(sInfo, "angles")) {
 						OpenObjectAnglesMenu(param1, Action_Edit);
@@ -452,8 +451,7 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 }
 
 int GetNearestObj(int client, int id) {
-	float origin[3];
-	origin = GetOrigin(client);
+	float origin[3]; origin = GetOrigin(client);
 
 	int obj = NO_OBJECT;
 	float origin2[3]; float origin3[3];

@@ -444,8 +444,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 			} else if (StrEqual(sInfo, "add_node")) {
 				g_NewNode[param1] = g_CreatingTrack[param1].GetTotalNodes();
 
-				float origin[3];
-				origin = GetOrigin(param1, 10.0);
+				float origin[3]; origin = GetOrigin(param1, 10.0);
 
 				int color[4] = {255, 255, 255, 255};
 				g_CreatingTrack[param1].AddNode(origin, color);
