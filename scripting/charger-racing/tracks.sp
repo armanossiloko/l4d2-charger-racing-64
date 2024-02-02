@@ -283,7 +283,6 @@ void ParseTracks(const char[] file) {
 					skin = kv.GetNum("skin");
 					
 					g_Tracks[index].AddObject(entity, origin, angles, model, scale, color, skin);
-					PrintToServer("Added object: %s", entity);
 				} while (kv.GotoNextKey());
 
 				kv.GoBack();
@@ -746,7 +745,11 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 
 void AskConfirmSetTrack(int client, int id) {
 	Menu menu = new Menu(MenuHandler_AskConfirmSetTrack);
-	menu.SetTitle("Are you sure you want to set this track as current?\n - %s", g_Tracks[id].name);
+	if (id == NO_TRACK) {
+		menu.SetTitle("Are you sure you want to set no track as current?");
+	} else {
+		menu.SetTitle("Are you sure you want to set this track as current?\n - %s", g_Tracks[id].name);
+	}
 
 	menu.AddItem("Yes", "Yes");
 	menu.AddItem("No", "No");

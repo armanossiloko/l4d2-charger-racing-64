@@ -14,7 +14,7 @@
 #include <l4d2_spawnSurvBotsHack>
 
 //Defines
-#define PLUGIN_VERSION "1.0.2"
+#define PLUGIN_VERSION "1.0.3"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -940,7 +940,9 @@ public void OnEntityDestroyed(int entity) {
 		return;
 	}
 
-	g_IsTemporarySurvivor[entity] = false;
+	if (entity < MaxClients) {
+		g_IsTemporarySurvivor[entity] = false;
+	}
 }
 
 public void OnItemSpawned(int entity) {
