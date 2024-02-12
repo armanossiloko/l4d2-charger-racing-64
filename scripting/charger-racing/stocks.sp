@@ -846,9 +846,54 @@ stock bool DeleteEntity(int entity) {
 	return true;
 }
 
+#define SURVBOTS_L4D1				(1 << 0) // 1
+#define SURVBOTS_L4D2				(1 << 1) // 2
+#define SURVBOTS_PASSING_L4D1		(1 << 2) // 4
+
 stock int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int character = 0, ObjectType type) {
-	//TODO: Move this functionality back into the main plugin and remove the dependency.
-	int bot_client_id = L4D2_CreateSurvivorBot_Hack(origin, character);
+	int spawn = CreateEntityByName("info_l4d1_survivor_spawn");
+
+	if (!IsValidEntity(spawn)) {
+		return -1;
+	}
+
+	DispatchKeyValue(spawn, "character", "4");
+	DispatchKeyValueVector(spawn, "origin", origin);
+	DispatchKeyValueVector(spawn, "angles", angles);
+
+	DispatchSpawn(spawn);
+	ActivateEntity(spawn);
+	AcceptEntityInput(spawn, "Kill");
+	
+	AcceptEntityInput(spawn, "SpawnSurvivor");
+	
+	int result = 0;
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsValidClient(i, true, true) || !IsPassingSurvivor(i) || !IsFakeClient(i)) {
+			continue;
+		}
+
+		result = i;
+		break;
+	}
+	
+	if (result == 0 || !IsValidClient(result, false, true)) {
+		return -1;
+	}
+
+	int team = L4D_TEAM_SURVIVOR;
+	int survSet = SURVBOTS_L4D2;
+	
+	ChangeClientTeam(result, team);
+	SetSurvivorChar(result, character, true, survSet);
+	
+	if (!IsPlayerAlive(result)) {
+		RespawnSurvivor(result, origin, angles);
+	}
+	
+	TeleportEntity(result, origin, angles, NULL_VECTOR);
+
+	int bot_client_id = result;
 
 	if (!IsPlayerAlive(bot_client_id)) {
 		L4D_RespawnPlayer(bot_client_id);
@@ -923,4 +968,94 @@ stock void vCheatCommand(int client, char[] command, char[] arguments = "") {
 	SetCommandFlags(command, iCmdFlags & ~FCVAR_CHEAT);
 	FakeClientCommand(client, "%s %s", command, arguments);
 	SetCommandFlags(command, iCmdFlags | FCVAR_CHEAT);
+}
+
+static char survivor_names[8][] = { "Nick", "Rochelle", "Coach", "Ellis", "Bill", "Zoey", "Francis", "Louis"};
+static char survivor_mdls[8][] = { "gambler", "producer", "coach", "mechanic", "namvet", "teenangst", "biker", "manager"};
+
+void SetSurvivorChar(int client, int character, bool setMdl = false, int survSet = SURVBOTS_L4D2) {
+	int survOffset = character;
+
+	if (view_as<bool>(survSet & SURVBOTS_L4D1)) {
+		if (character < 4) {
+			survOffset += 4;
+
+			switch (character) {
+				case 2: {
+					// Coach, Louis to Coach
+					survOffset += 1;
+				} // 2 + 4 = 6	6 + 1 = 7
+				case 3: {
+					// Ellis, Francis to Ellis
+					survOffset -= 1;
+				} // 3 + 4 = 7	7 - 1 = 6
+
+				// Louis and Francis take place of Coach = 2 and Ellis = 3 on m_survivorCharacter
+				// respectively, but Francis = 6 and Louis = 7 for the Passing team, 
+				// hence this switch check.
+			}
+		}
+	}
+	
+	if (IsFakeClient(client)) {
+		SetClientName(client, survivor_names[survOffset]);
+	}
+
+	SetEntProp(client, Prop_Send, "m_survivorCharacter", character);
+
+	if (setMdl) {
+		char temp_str[PLATFORM_MAX_PATH+1];
+		Format(temp_str, sizeof(temp_str), "models/survivors/survivor_%s.mdl", survivor_mdls[survOffset]);
+
+		if (!IsModelPrecached(temp_str)) {
+			PrecacheModel(temp_str);
+		}
+
+		SetEntityModel(client, temp_str);
+	}
+}
+
+stock bool IsPassingSurvivor(int client) {
+	return (GetClientTeam(client) == L4D_TEAM_FOUR);
+}
+
+stock bool IsValidClient(int client, bool replaycheck = true, bool isLoop = false) {
+	if ((isLoop || client > 0 && client <= MaxClients) && IsClientInGame(client)) {
+		if (replaycheck) {
+			if (IsClientSourceTV(client) || IsClientReplay(client)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+	
+	return false;
+}
+
+void RespawnSurvivor(int client, const float origin[3], const float angles[3]) {
+	// We respawn the player via rescue entity; we don't need a signature at all!
+	int rescue_ent = CreateEntityByName("info_survivor_rescue");
+	
+	if (!IsValidEntity(rescue_ent)) {
+		return;
+	}
+
+	AcceptEntityInput(rescue_ent, "Kill");
+	
+	TeleportEntity(rescue_ent, origin, angles, NULL_VECTOR);
+	
+	char cl_model[PLATFORM_MAX_PATH];
+	GetClientModel(client, cl_model, sizeof(cl_model));
+	SetEntityModel(rescue_ent, cl_model);
+	
+	DispatchSpawn(rescue_ent);
+	ActivateEntity(rescue_ent);
+	
+	DispatchKeyValue(rescue_ent, "nextthink", "10.0");
+	
+	SetEntPropEnt(rescue_ent, Prop_Send, "m_survivor", client);
+	AcceptEntityInput(rescue_ent, "Rescue");
+	
+	SetEntityHealth(client, GetEntProp(client, Prop_Send, "m_iMaxHealth"));
 }

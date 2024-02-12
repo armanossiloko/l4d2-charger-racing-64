@@ -11,7 +11,6 @@
 #include <colors>
 
 #include <charger_racing>
-#include <l4d2_spawnSurvBotsHack>
 
 //Defines
 #define PLUGIN_VERSION "1.0.3"
