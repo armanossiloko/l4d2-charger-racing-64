@@ -13,7 +13,7 @@
 #include <charger_racing>
 
 //Defines
-#define PLUGIN_VERSION "1.0.3"
+#define PLUGIN_VERSION "1.0.4"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -122,6 +122,7 @@ bool added[MAXPLAYERS + 1];
 
 int g_iLastSpawnClient;
 
+BotType g_BotType[MAXPLAYERS + 1];
 bool g_IsTemporarySurvivor[MAXPLAYERS + 1];
 
 //Sub-Files

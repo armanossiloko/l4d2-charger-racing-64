@@ -916,6 +916,7 @@ stock int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int char
 	}
 
 	L4D2_SetEntityGlow(bot_client_id, L4D2Glow_Constant, 0, 5, color, true);
+	g_BotType[bot_client_id] = BotType_Buff;
 
 	return bot_client_id;
 }

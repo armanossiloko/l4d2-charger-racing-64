@@ -14,6 +14,8 @@ enum struct API {
 		CreateNative("ChargerRacing_GetMode", Native_GetMode);
 		CreateNative("ChargerRacing_SetStatus", Native_SetStatus);
 		CreateNative("ChargerRacing_GetStatus", Native_GetStatus);
+		CreateNative("ChargerRacing_IsBotTemporary", Native_IsBotTemporary);
+		CreateNative("ChargerRacing_GetBotType", Native_GetBotType);
 
 		this.onStartRace = new GlobalForward("ChargerRacing_OnStartRace", ET_Ignore);
 		this.onEndRace = new GlobalForward("ChargerRacing_OnEndRace", ET_Ignore);
@@ -100,4 +102,14 @@ public int Native_SetStatus(Handle plugin, int numParams) {
 
 public int Native_GetStatus(Handle plugin, int numParams) {
 	return view_as<int>(g_State.status);
+}
+
+public int Native_IsBotTemporary(Handle plugin, int numParams) {
+	int bot = GetNativeCell(1);
+	return g_IsTemporarySurvivor[bot];
+}
+
+public int Native_GetBotType(Handle plugin, int numParams) {
+	int bot = GetNativeCell(1);
+	return view_as<int>(g_BotType[bot]);
 }

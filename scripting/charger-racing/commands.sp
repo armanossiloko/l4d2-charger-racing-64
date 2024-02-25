@@ -519,6 +519,13 @@ public Action Command_Survivor(int client, int args) {
 		origin = GetOrigin(client, 10.0);
 	}
 
+	BotType type = BotType_Buff;
+	if (args > 0) {
+		char sType[16];
+		GetCmdArg(1, sType, sizeof(sType));
+		type = view_as<BotType>(StringToInt(sType));
+	}
+
 	int bot = SpawnSurvivor(origin, NULL_VECTOR, GetRandomInt(0, 7), ObjectType_Temporary);
 
 	if (!IsValidEntity(bot)) {
@@ -526,7 +533,9 @@ public Action Command_Survivor(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	g_BotType[bot] = type;
 	g_IsTemporarySurvivor[bot] = true;
+	
 	PrintToClient(client, "%T", "spawned survivor", client);
 
 	return Plugin_Handled;

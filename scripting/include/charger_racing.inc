@@ -38,12 +38,20 @@ enum TrackAction {
 	Action_Set		//We're setting the current track.
 }
 
+//How the bot interacts with the play in terms of positive or negative effects.
+enum BotType {
+	BotType_Buff,
+	BotType_Debuff
+}
+
 native void ChargerRacing_SetTrack(int track);
 native int ChargerRacing_GetTrack();
 native void ChargerRacing_SetMode(Modes mode);
 native Modes ChargerRacing_GetMode();
 native void ChargerRacing_SetStatus(Status status);
 native Status ChargerRacing_GetStatus();
+native bool ChargerRacing_IsBotTemporary(int bot);
+native BotType ChargerRacing_GetBotType(int bot);
 
 forward void ChargerRacing_OnStartRace();
 forward void ChargerRacing_OnEndRace();
@@ -62,6 +70,8 @@ public __pl_charger_racing_64_SetNTVOptional()
 	MarkNativeAsOptional("ChargerRacing_GetMode");
 	MarkNativeAsOptional("ChargerRacing_SetStatus");
 	MarkNativeAsOptional("ChargerRacing_GetStatus");
+	MarkNativeAsOptional("ChargerRacing_IsBotTemporary");
+	MarkNativeAsOptional("ChargerRacing_GetBotType");
 }
 #endif
 

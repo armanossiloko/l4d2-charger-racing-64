@@ -1181,7 +1181,7 @@ void CreateTrackObjects() {
 				}
 
 				g_TrackObjects.Push(EntIndexToEntRef(ent));
-
+				
 				int StartFrame = 0;
 				int FrameRate = 0;
 				float Life = 10.0;
