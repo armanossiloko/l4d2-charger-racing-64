@@ -349,6 +349,7 @@ public void OnConfigsExecuted() {
 	FindConVar("sb_stop").BoolValue = true;
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("z_common_limit").IntValue = 0;
+	FindConVar("director_no_bosses").BoolValue = true;
 
 	char sParticle[64];
 	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
