@@ -497,10 +497,6 @@ public Action Command_Ready(int client, int args) {
 	g_Player[client].ready = !g_Player[client].ready;
 	PrintToClient(client, "%T", "ready toggle", client, (g_Player[client].ready ? "Enabled" : "Disabled"));
 
-	for (int i = 1; i <= MaxClients; i++) {
-		g_Player[i].ready = true;
-	}
-
 	return Plugin_Handled;
 }
 
