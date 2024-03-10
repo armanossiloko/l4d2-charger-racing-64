@@ -96,7 +96,7 @@ enum struct GameState {
 		this.countdown = convar_Racing_Countdown.IntValue;
 		this.timer = convar_Racing_Timer.FloatValue;
 
-		ClearEntities();
+		ClearEntities(false);
 		CreatePathNodes();
 		CreateTrackObjects();
 	}

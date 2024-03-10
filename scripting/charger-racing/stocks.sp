@@ -675,19 +675,25 @@ public int OnSortScores(int elem1, int elem2, const int[] array, Handle hndl) {
 	return 0;
 }
 
-stock void ClearEntities() {
-	DeleteBots();
+stock void ClearEntities(bool tempbots = true) {
+	DeleteBots(tempbots);
 	DeleteItems();
 	DeleteDoors();
 	DeleteInfected();
 	DeleteElevators();
 }
 
-stock void DeleteBots() {
+stock void DeleteBots(bool tempbots = true) {
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && IsFakeClient(i) && L4D_GetClientTeam(i) == L4DTeam_Survivor && g_TrackObjects.FindValue(EntIndexToEntRef(i)) == -1) {
-			KickClient(i);
+		if (!IsClientInGame(i) || !IsFakeClient(i) || L4D_GetClientTeam(i) != L4DTeam_Survivor || g_TrackObjects.FindValue(EntIndexToEntRef(i)) != -1) {
+			continue;
 		}
+
+		if (!tempbots && g_IsTemporarySurvivor[i]) {
+			continue;
+		}
+
+		KickClient(i);
 	}
 }
 
