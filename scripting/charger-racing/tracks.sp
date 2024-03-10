@@ -532,7 +532,9 @@ void OpenTracksMenu(int client, TrackAction action) {
 	Menu menu = new Menu(MenuHandler_Tracks);
 	menu.SetTitle("Pick a track to %s:", sAction);
 
-	menu.AddItem("-1", "None");
+	if (action == Action_Set) {
+		menu.AddItem("-1", "None");
+	}
 
 	char sID[16];
 	for (int i = 0; i < g_TotalTracks; i++) {

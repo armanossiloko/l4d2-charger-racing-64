@@ -553,11 +553,15 @@ stock int GetWinnerGroup() {
 }
 
 stock void TeleportToSurvivorPos(int client) {
-	int positions[16];
+	int positions[32];
 	int total;
 
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "info_survivor_position")) != -1) {
+		if (total >= 32) {
+			break;
+		}
+
 		positions[total++] = entity;
 	}
 
