@@ -49,6 +49,11 @@ enum struct Object {
 			return -1;
 		}
 
+		if (strlen(this.model) == 0 && StrContains(this.entity, "prop_") == 0) {
+			RemoveEntity(this.index);
+			return -1;
+		}
+
 		DispatchKeyValueVector(this.index, "origin", this.origin);
 		DispatchKeyValueVector(this.index, "angles", this.angles);
 		DispatchKeyValue(this.index, "model", this.model);
@@ -1198,6 +1203,10 @@ void CreateTrackObjects() {
 				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
 				TE_SendToAll();
 
+				continue;
+			}
+
+			if (strlen(model) == 0 && StrContains(entity, "prop_") == 0) {
 				continue;
 			}
 

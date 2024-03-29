@@ -52,11 +52,8 @@ void IsNearNode(int client, int index) {
 		int points = g_Points.Get(g_State.mode, "checkpoint");
 		g_Player[client].speeds.Clear();
 
-		//If we're carrying a survivor, give our points a multiplier.
-		int bot = -1;
-		if ((bot = L4D2_GetInfectedAttacker(client)) != -1) {
-			points *= (g_BotType[bot] == BotType_Debuff) ? 0.80 : 1.20;
-		}
+		//If we're carrying a survivor when we reach a node, grab the multiplier for it and apply it to points gained.
+		points *= GetBotPointsMultiplier(client);
 
 		//Give the points and update the hud.
 		g_Player[client].AddPoints(points);
@@ -76,11 +73,8 @@ void IsNearFinish(int client) {
 
 	int points = g_Points.Get(g_State.mode, "finished");
 
-	int bot = -1;
-	if ((bot = L4D2_GetInfectedAttacker(client)) != -1) {
-		int temp = g_Points.Get(g_State.mode, "survivor");
-		points += (g_BotType[bot] == BotType_Debuff) ? RoundFloat(float(temp) * 0.80) : temp;
-	}
+	//If we're carrying a bot and we hit the finish line then apply the multiplier for hitting the finish line.
+	points *= GetBotPointsMultiplier(client);
 
 	g_Player[client].AddPoints(points);
 	g_Player[client].Cache();
@@ -104,11 +98,8 @@ void IsNearFinish(int client) {
 				} else {
 					points = g_Points.Get(g_State.mode, "winner");
 
-					bot = -1;
-					if ((bot = L4D2_GetInfectedAttacker(winner)) != -1) {
-						int temp = g_Points.Get(g_State.mode, "survivor");
-						points += (g_BotType[bot] == BotType_Debuff) ? RoundFloat(float(temp) * 0.80) : temp;
-					}
+					//If we're carrying a survivor then apply the multiplier to the points won as a single player.
+					points *= GetBotPointsMultiplier(winner);
 					
 					g_Player[winner].AddPoints(points);
 					g_Player[winner].Cache();
@@ -146,11 +137,8 @@ void IsNearFinish(int client) {
 							continue;
 						}
 
-						bot = -1;
-						if ((bot = L4D2_GetInfectedAttacker(player)) != -1) {
-							int temp2 = g_Points.Get(g_State.mode, "survivor");
-							temp += (g_BotType[bot] == BotType_Debuff) ? RoundFloat(float(temp2) * 0.80) : temp2;
-						}
+						//If we're carrying a survivor then apply the multiplier to the points won as a team.
+						temp *= GetBotPointsMultiplier(player);
 
 						g_Player[player].AddPoints(temp);
 						g_Player[player].Cache();

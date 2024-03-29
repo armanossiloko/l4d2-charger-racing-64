@@ -40,6 +40,7 @@ enum TrackAction {
 
 //How the bot interacts with the play in terms of positive or negative effects.
 enum BotType {
+	BotType_Normal,
 	BotType_Buff,
 	BotType_Debuff
 }

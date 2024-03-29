@@ -202,7 +202,7 @@ enum struct GameState {
 						added[client] = true;
 
 						clients[total] = client;
-						PrintToClient(clients[total], "%T", "added to group queue", clients[total], i);
+						PrintToClient(clients[total], "%T", "added to group queue", clients[total], (i + 1));
 						total++
 					}
 

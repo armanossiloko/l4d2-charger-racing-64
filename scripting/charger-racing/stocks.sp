@@ -925,7 +925,7 @@ stock int SpawnSurvivor(float origin[3], float angles[3] = NULL_VECTOR, int char
 		}
 	}
 
-	L4D2_SetEntityGlow(bot_client_id, L4D2Glow_Constant, 0, 5, color, true);
+	L4D2_SetEntityGlow(bot_client_id, L4D2Glow_Constant, 0, 5, color, false);
 	g_BotType[bot_client_id] = BotType_Buff;
 
 	return bot_client_id;
@@ -1044,7 +1044,7 @@ stock bool IsValidClient(int client, bool replaycheck = true, bool isLoop = fals
 	return false;
 }
 
-void RespawnSurvivor(int client, const float origin[3], const float angles[3]) {
+stock void RespawnSurvivor(int client, const float origin[3], const float angles[3]) {
 	// We respawn the player via rescue entity; we don't need a signature at all!
 	int rescue_ent = CreateEntityByName("info_survivor_rescue");
 	
@@ -1069,4 +1069,26 @@ void RespawnSurvivor(int client, const float origin[3], const float angles[3]) {
 	AcceptEntityInput(rescue_ent, "Rescue");
 	
 	SetEntityHealth(client, GetEntProp(client, Prop_Send, "m_iMaxHealth"));
+}
+
+stock float GetBotPointsMultiplier(int client) {
+	int bot = L4D2_GetInfectedAttacker(client);
+
+	if (!IsValidEntity(bot)) {
+		return 0.0;
+	}
+
+	switch (g_BotType[bot]) {
+		case BotType_Normal: {
+			return 0.0;
+		}
+		case BotType_Buff: {
+			return 1.20;
+		}
+		case BotType_Debuff: {
+			return 0.80;
+		}
+	}
+
+	return 0.0;
 }

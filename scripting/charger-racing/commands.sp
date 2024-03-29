@@ -333,6 +333,35 @@ public Action Command_StartRace(int client, int args) {
 		return Plugin_Handled;
 	}
 
+	int ready = GetReadyPlayers();
+	int total = GetTotalPlayers();
+
+	switch (g_State.mode) {
+		case MODE_SINGLES, MODE_TEAMS: {
+			if (client > 0 && IsClientInGame(client) && IsPlayerAlive(client) && total == 1 && ready == 0) {
+				g_Player[client].ready = true;
+				ready++;
+			}
+
+			if (ready < 1) {
+				ReplyToClient(client, "%T", "must have set number of ready players", client, 1);
+				return Plugin_Handled;
+			}
+		}
+
+		case MODE_GROUPS, MODE_GROUPTEAMS: {
+			if (client > 0 && IsClientInGame(client) && IsPlayerAlive(client) && total == 2 && ready == 1 && !g_Player[client].ready) {
+				g_Player[client].ready = true;
+				ready++;
+			}
+
+			if (ready < 2) {
+				ReplyToClient(client, "%T", "must have set number of ready players", client, 2);
+				return Plugin_Handled;
+			}
+		}
+	}
+
 	g_State.StartRace();
 	PrintToClients("%t", "force start race", client);
 
@@ -515,7 +544,7 @@ public Action Command_Survivor(int client, int args) {
 		origin = GetOrigin(client, 10.0);
 	}
 
-	BotType type = BotType_Buff;
+	BotType type = BotType_Debuff;
 	if (args > 0) {
 		char sType[16];
 		GetCmdArg(1, sType, sizeof(sType));

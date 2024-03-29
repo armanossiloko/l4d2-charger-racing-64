@@ -13,7 +13,7 @@
 #include <charger_racing>
 
 //Defines
-#define PLUGIN_VERSION "1.0.4"
+#define PLUGIN_VERSION "1.0.5"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -230,9 +230,13 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_preparerace", Command_PrepareRace, "Starts the preparation phase manually.");
 
 	//General Commands
+	RegAdminCmd2("sm_bot", Command_Survivor, ADMFLAG_ROOT, "Spawns a temporary survivor where you're looking.");
+	RegAdminCmd2("sm_spawnbot", Command_Survivor, ADMFLAG_ROOT, "Spawns a temporary survivor where you're looking.");
 	RegAdminCmd2("sm_survivor", Command_Survivor, ADMFLAG_ROOT, "Spawns a temporary survivor where you're looking.");
+	RegAdminCmd2("sm_spawnsurvivor", Command_Survivor, ADMFLAG_ROOT, "Spawns a temporary survivor where you're looking.");
 
 	//Track Commands
+	RegAdminCmd2("sm_tracks", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
 	RegAdminCmd2("sm_votetrack", Command_VoteTrack, ADMFLAG_ROOT, "Start a vote for which track to be on.");
 	RegAdminCmd2("sm_reloadtracks", Command_ReloadTracks, ADMFLAG_ROOT, "Reloads all tracks from the file.");
 	RegAdminCmd2("sm_savetracks", Command_SaveTracks, ADMFLAG_ROOT, "Saves all tracks to the file.");
@@ -714,30 +718,36 @@ public Action Timer_Tick(Handle timer) {
 
 	//We're preparing for race so we know players are on the server currently wanting to race.
 	if (g_State.status == STATUS_PREPARING) {
-		char sName[64];
-		GetModeName(g_State.mode, sName, sizeof(sName));
+		char sMode[64];
+		GetModeName(g_State.mode, sMode, sizeof(sMode));
 		
-		char sTime[64];
-		FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", false);
+		char sTimer[64];
+		FormatSeconds(g_State.timer, sTimer, sizeof(sTimer), "%M:%S", false);
 
-		bool pause;
-		char reason[64];
+		bool forcePause;
+		int ready = GetReadyPlayers();
+		int total = GetTotalPlayers();
 
-		if (GetReadyPlayers() == 0) {
-			pause = true;
-			strcopy(reason, sizeof(reason), " (No Ready Players Found)");
+		char sWidget[64];
+		FormatEx(sWidget, sizeof(sWidget), "(Ready: %i/%i)", ready, total);
+
+		if (ready == 0) {
+			forcePause = true;
 		}
 		
 		if (g_State.mode == MODE_TEAMS || g_State.mode == MODE_GROUPTEAMS) {
-			if (GetTeamAliveCount(view_as<int>(L4DTeam_Infected)) < 2) {
-				pause = true;
-				strcopy(reason, sizeof(reason), " (Waiting for More Players)");
+			if (ready < 2) {
+				forcePause = true;
 			}
 		}
 
-		PrintHintTextToAll("%t", "prepare center hud", sName, sTime, (pause ? reason : g_State.paused ? " (Paused)" : ""));
+		if (g_State.paused) {
+			strcopy(sWidget, sizeof(sWidget), "(Paused)");
+		}
 
-		if (!g_State.paused && !pause) {
+		PrintHintTextToAll("%t", "prepare center hud", sMode, sTimer, sWidget);
+
+		if (!g_State.paused && !forcePause) {
 			g_State.timer--;
 		}
 

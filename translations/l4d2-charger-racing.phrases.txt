@@ -15,7 +15,7 @@
 	"prepare center hud"
 	{
 		"#format"	"{1:s},{2:s},{3:s}"
-		"en"	"[{1}] Preparing to race... {2}{3}"
+		"en"	"[{1}] Race starts in '{2}': {3}"
 	}
 
 	"voted for track"
@@ -412,5 +412,11 @@
 	"must prepare race manually"
 	{
 		"en"	"Start the race by typing {olive}!preparerace {default}in chat."
+	}
+
+	"must have set number of ready players"
+	{
+		"#format"	"{1:i}"
+		"en"	"There must be at least {olive}{1} {default}players who are ready to start the race."
 	}
 }
