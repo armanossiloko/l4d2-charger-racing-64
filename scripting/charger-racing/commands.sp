@@ -40,11 +40,23 @@ public Action Command_Hud(int client, int args) {
 
 	PrintToClient(client, "%T%T", "hud status", client, (g_Player[client].hud ? "hud enabled" : "hud disabled"), client);
 
+	if (!g_Player[client].hud) {
+		PrintHintText(client, "Closing Hud...");
+		Panel panel = new Panel();
+		panel.DrawText("Closing Hud...");
+		panel.Send(client, MenuHandler_Void, 1);
+		delete panel;
+	}
+
 	if (AreClientCookiesCached(client)) {
 		g_Cookies.hud.Set(client, (g_Player[client].hud ? "1" : "0"));
 	}
 
 	return Plugin_Handled;
+}
+
+public int MenuHandler_Void(Menu menu, MenuAction action, int param1, int param2) {
+	return 0;
 }
 
 public Action Command_Commands(int client, int args) {

@@ -50,7 +50,7 @@ enum struct Object {
 		}
 
 		if (strlen(this.model) == 0 && StrContains(this.entity, "prop_") == 0) {
-			RemoveEntity(this.index);
+			DeleteEntity(this.index);
 			return -1;
 		}
 

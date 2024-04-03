@@ -58,6 +58,9 @@ ConVar convar_Ratio;
 ConVar convar_Spawns_Items;
 ConVar convar_Spawns_Doors;
 ConVar convar_Spawns_Infected;
+ConVar convar_Spawns_Elevators;
+ConVar convar_Spawns_Props;
+ConVar convar_Spawns_Ladders;
 ConVar convar_Track_Culling;
 ConVar convar_Preparation_Delay;
 ConVar convar_Death_On_Finish;
@@ -166,7 +169,11 @@ public void OnPluginStart() {
 	LoadTranslations("common.phrases");
 	LoadTranslations("l4d2-charger-racing.phrases");
 
-	Database.Connect(OnSQLConnect, "l4d2-charger-racing");
+	if (SQL_CheckConfig("l4d2-charger-racing")) {
+		Database.Connect(OnSQLConnect, "l4d2-charger-racing");
+	} else {
+		Database.Connect(OnSQLConnect, "default");
+	}
 
 	//ConVars
 	CreateConVar("sm_l4d2_charger_racing_version", PLUGIN_VERSION, "Version control for this plugin.", FCVAR_DONTRECORD);
@@ -188,6 +195,9 @@ public void OnPluginStart() {
 	convar_Spawns_Items = CreateConVar("sm_l4d2_charger_racing_spawns_items", "1", "Should the items be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Doors = CreateConVar("sm_l4d2_charger_racing_spawns_doors", "1", "Should the doors be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Spawns_Infected = CreateConVar("sm_l4d2_charger_racing_spawns_infected", "1", "Should the common infected be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Spawns_Elevators = CreateConVar("sm_l4d2_charger_racing_spawns_elevators", "1", "Should the elevators be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Spawns_Props = CreateConVar("sm_l4d2_charger_racing_spawns_props", "1", "Should the props be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Spawns_Ladders = CreateConVar("sm_l4d2_charger_racing_spawns_ladders", "1", "Should the ladders be deleted and stopped from spawning entirely?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Track_Culling = CreateConVar("sm_l4d2_charger_racing_track_culling", "5000.0", "After what distance from the player should the track no longer draw?", FCVAR_NOTIFY, true, 0.0);
 	convar_Preparation_Delay = CreateConVar("sm_l4d2_charger_racing_preparation_delay", "10", "How many seconds to delay the preparation period?", FCVAR_NOTIFY, true, 0.0);
 	convar_Death_On_Finish = CreateConVar("sm_l4d2_charger_racing_death_on_finish", "1", "Should the Charger actively racing if/once they reach the finish line?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -227,6 +237,7 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_track", Command_Track, "Prints out to chat which track is currently set.");
 	RegConsoleCmd2("sm_stats", Command_Stats, "Shows your current statistics.");
 	RegConsoleCmd2("sm_ready", Command_Ready, "Ready up to play the next match.");
+	RegConsoleCmd2("sm_race", Command_PrepareRace, "Starts the preparation phase manually.");
 	RegConsoleCmd2("sm_preparerace", Command_PrepareRace, "Starts the preparation phase manually.");
 
 	//General Commands
@@ -287,7 +298,14 @@ public void OnPluginStart() {
 
 public void OnSQLConnect(Database db, const char[] error, any data) {
 	if (db == null) {
-		ThrowError("Error while connecting to database: %s", error);
+		LogError("Error while connecting to database: %s\nConnecting to SQLite...", error);
+
+		char sqerror[256];
+		db = SQLite_UseDatabase("l4d2-charger-racing", sqerror, sizeof(sqerror));
+
+		if (db == null) {
+			ThrowError("Error while connecting to SQLite: %s", sqerror);
+		}
 	}
 	
 	g_Database = db;
@@ -354,6 +372,8 @@ public void OnConfigsExecuted() {
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("z_common_limit").IntValue = 0;
 	FindConVar("director_no_bosses").BoolValue = true;
+	FindConVar("z_discard_min_range").IntValue = 99999;
+	FindConVar("z_discard_range").IntValue = 99999;
 
 	char sParticle[64];
 	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
@@ -656,7 +676,6 @@ public void OnGameFrame() {
 public void L4D_OnEnterGhostState(int client) {
 	L4D_MaterializeFromGhost(client);
 	L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
-	TeleportToSurvivorPos(client);
 }
 
 public Action Timer_DelaySpawn(Handle timer, any userid) {
@@ -680,11 +699,8 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	}
 
 	//Make sure the player is a charger and no other type of zombie.
-	L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
-
-	//Teleport the player to a survivor position at the start of the map.
-	if (g_State.status == STATUS_NONE || g_State.status == STATUS_PREPARING) {
-		TeleportToSurvivorPos(client);
+	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
+		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
 	}
 
 	return Plugin_Stop;
@@ -712,7 +728,7 @@ public Action Timer_Tick(Handle timer) {
 	}
 
 	if (g_State.track == NO_TRACK) {
-		PrintHintTextToAll("No track is set, please set one.");
+		PrintHintTextToClients("No track is set, please set one.");
 		return Plugin_Continue;
 	}
 
@@ -745,7 +761,7 @@ public Action Timer_Tick(Handle timer) {
 			strcopy(sWidget, sizeof(sWidget), "(Paused)");
 		}
 
-		PrintHintTextToAll("%t", "prepare center hud", sMode, sTimer, sWidget);
+		PrintHintTextToClients("%t", "prepare center hud", sMode, sTimer, sWidget);
 
 		if (!g_State.paused && !forcePause) {
 			g_State.timer--;
@@ -776,18 +792,26 @@ public Action Timer_Tick(Handle timer) {
 
 	char sTime[64];
 	FormatSeconds(g_State.timer, sTime, sizeof(sTime), "%M:%S", false);
-	PrintHintTextToAll("Race ends in... %s", sTime);
+	PrintHintTextToClients("Race ends in... %s", sTime);
 
 	if (!g_State.paused) {
 		g_State.timer--;
 	}
 
 	if (g_State.timer <= 0.0) {
+		for (int i = 1; i <= MaxClients; i++) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i) || L4D_GetClientTeam(i) != L4DTeam_Infected || !g_Player[i].playing) {
+				continue;
+			}
+
+			g_Player[i].finished = true;
+		}
+
 		switch (g_State.mode) {
 			case MODE_SINGLES, MODE_TEAMS: {
 				if (AllPlayersFinished()) {
 					PrintToClients("%t", "race times up print");
-					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
+					//PrintHintTextToClients("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
 					EndRace(1);
 				} else {
@@ -798,7 +822,7 @@ public Action Timer_Tick(Handle timer) {
 			case MODE_GROUPS, MODE_GROUPTEAMS: {
 				if (g_State.group > g_Groups.GetTotalGroups()) {
 					PrintToClients("%t", "race times up print");
-					//PrintHintTextToAll("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
+					//PrintHintTextToClients("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
 					EndRace(2);
 				} else {
@@ -968,7 +992,7 @@ public Action Timer_DeleteItem(Handle timer, any data) {
 		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 
 		if (owner < 1 || owner > MaxClients) {
-			RemoveEntity(entity);
+			DeleteEntity(entity);
 		}
 	}
 
@@ -977,13 +1001,13 @@ public Action Timer_DeleteItem(Handle timer, any data) {
 
 public void OnDoorSpawned(int entity) {
 	if (convar_Spawns_Doors.BoolValue) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 }
 
 public void OnInfectedSpawned(int entity) {
 	if (convar_Spawns_Infected.BoolValue) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 }
 
@@ -1007,4 +1031,16 @@ public Action Timer_Prepare(Handle timer) {
 	}
 
 	return Plugin_Continue;
+}
+
+public Action L4D_OnSpawnSpecial(int &zombieClass, const float vecPos[3], const float vecAng[3]) {
+	return Plugin_Handled;
+}
+
+public Action L4D_OnSpawnTank(const float vecPos[3], const float vecAng[3]) {
+	return Plugin_Handled;
+}
+
+public Action L4D_OnSpawnWitch(const float vecPos[3], const float vecAng[3]) {
+	return Plugin_Handled;
 }

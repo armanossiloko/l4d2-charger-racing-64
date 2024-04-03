@@ -30,12 +30,27 @@ stock void ReplyToClient(int client, const char[] format, any ...) {
 }
 
 stock void PrintHintTextToClients(const char[] format, any ...) {
+	if (g_State.status == STATUS_NONE) {
+		return;
+	}
+
 	char mode[64];
 	GetModeName(g_State.mode, mode, sizeof(mode));
 
 	char buffer[1024];
 	VFormat(buffer, sizeof(buffer), format, 2);
-	PrintHintTextToAll("%t%s", "print tag no color", mode, buffer);
+
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientConnected(i) || !IsClientInGame(i) || IsFakeClient(i)) {
+			continue;
+		}
+
+		if (!g_Player[i].hud) {
+			continue;
+		}
+
+		PrintHintText(i, "%t%s", "print tag no color", mode, buffer);
+	}
 }
 
 stock void ModeLog(const char[] format, any ...) {
@@ -254,7 +269,7 @@ stock void StaggerClient(int userid, float vPos[3])
 	Format(sBuffer, sizeof(sBuffer), "GetPlayerFromUserID(%d).Stagger(Vector(%d,%d,%d))", userid, RoundFloat(vPos[0]), RoundFloat(vPos[1]), RoundFloat(vPos[2]));
 	SetVariantString(sBuffer);
 	AcceptEntityInput(logic, "RunScriptCode");
-	RemoveEntity(logic);
+	DeleteEntity(logic);
 }
 
 stock bool PushMenuInt(Menu menu, const char[] id, int value) {
@@ -681,6 +696,8 @@ stock void ClearEntities(bool tempbots = true) {
 	DeleteDoors();
 	DeleteInfected();
 	DeleteElevators();
+	DeleteProps();
+	DeleteLadders();
 }
 
 stock void DeleteBots(bool tempbots = true) {
@@ -705,7 +722,7 @@ stock void DeleteItems() {
 	int entity = -1;
 
 	while ((entity = FindEntityByClassname(entity, "item_*")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 
 	entity = -1;
@@ -713,7 +730,7 @@ stock void DeleteItems() {
 		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 		
 		if (owner < 1 || owner > MaxClients) {
-			RemoveEntity(entity);
+			DeleteEntity(entity);
 		}
 	}
 }
@@ -725,19 +742,19 @@ stock void DeleteDoors() {
 
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_door*")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "momentary_door")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "prop_wall*")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 }
 
@@ -748,18 +765,50 @@ stock void DeleteInfected() {
 
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "infected")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
 	}
 }
 
 stock void DeleteElevators() {
-	if (!convar_Spawns_Infected.BoolValue) {
+	if (!convar_Spawns_Elevators.BoolValue) {
 		return;
 	}
 
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_elevator")) != -1) {
-		RemoveEntity(entity);
+		DeleteEntity(entity);
+	}
+}
+
+stock void DeleteProps() {
+	if (!convar_Spawns_Props.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_*")) != -1) {
+		if (entity > MaxClients) {
+			DeleteEntity(entity);
+		}
+	}
+}
+
+stock void DeleteLadders() {
+	if (!convar_Spawns_Ladders.BoolValue) {
+		return;
+	}
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_ladder")) != -1) {
+		if (entity > MaxClients) {
+			DeleteEntity(entity);
+		}
+	}
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_simpleladder")) != -1) {
+		if (entity > MaxClients) {
+			DeleteEntity(entity);
+		}
 	}
 }
 

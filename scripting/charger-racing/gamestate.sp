@@ -129,7 +129,7 @@ enum struct GameState {
 		g_API.Call_OnStatusChange(this.status);
 		this.rounds++;
 
-		PrintHintTextToAll("%t", "match is ending");
+		PrintHintTextToClients("%t", "match is ending");
 
 		//Run code a frame after the race finishes, mostly used to stop compile errors.
 		RequestFrame(Frame_DelayFinish);
@@ -290,8 +290,6 @@ enum struct GameState {
 			if (teleport) {
 				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 				LookAtPoint(i, origin2);
-			} else {
-				TeleportToSurvivorPos(i);
 			}
 
 			g_Player[i].currentnode = 0;

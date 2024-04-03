@@ -86,7 +86,7 @@ enum struct Player {
 	}
 
 	void SyncHud() {
-		if (!this.hud) {
+		if (!this.hud || g_State.status == STATUS_NONE) {
 			return;
 		}
 
