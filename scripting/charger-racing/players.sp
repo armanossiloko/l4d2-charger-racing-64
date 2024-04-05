@@ -90,20 +90,6 @@ enum struct Player {
 			return;
 		}
 
-		float x = -1.0;
-		float y = -1.0;
-		float holdTime = 99999.0;
-		int red = 255;
-		int green = 255;
-		int blue = 255;
-		int alpha = 255;
-		int effect;
-		float fxTime;
-		float fadeIn;
-		float fadeOut;
-
-		SetHudTextParams(x, y, holdTime, red, green, blue, alpha, effect, fxTime, fadeIn, fadeOut);
-
 		char sBuffer[256];
 
 		switch (g_State.mode) {
