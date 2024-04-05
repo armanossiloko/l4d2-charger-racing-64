@@ -143,13 +143,13 @@ void OpenAddObjectMenu(int client, TrackAction action) {
 	char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 	switch (action) {
 		case Action_Create: {
-			int obj = g_NewObj[client];
+			int obj = g_FocusObj[client];
 			g_CreatingTrack[client].GetObject(obj, entity, origin, angles, model, scale, color, skin);
 		}
 
 		case Action_Edit: {
 			int id = g_EditingTrack[client];
-			int obj = g_EditingObj[client];
+			int obj = g_FocusObj[client];
 			g_Tracks[id].GetObject(obj, entity, origin, angles, model, scale, color, skin);
 		}
 	}
@@ -188,7 +188,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (StrEqual(sInfo, "entity")) {
 						char entity[64];
@@ -248,7 +248,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 					
 					if (StrEqual(sInfo, "entity")) {
 						OpenObjectEntitiesMenu(param1, Action_Create);
@@ -259,7 +259,6 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 							origin = GetOrigin(param1, 10.0);
 						}
 						g_CreatingTrack[param1].SetObjectOrigin(obj, origin);
-						g_NewObjectEnt[param1].SetOrigin(origin);
 					} else if (StrEqual(sInfo, "angles")) {
 						OpenObjectAnglesMenu(param1, Action_Create);
 						return 0;
@@ -276,8 +275,6 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 						OpenObjectSkinsMenu(param1, Action_Create);
 						return 0;
 					} else if (StrEqual(sInfo, "save")) {
-						g_NewObjectEnt[param1].Delete();
-						g_NewObjectEnt[param1].Clear();
 						OpenCreateTrackMenu(param1);
 						return 0;
 					}
@@ -287,7 +284,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (StrEqual(sInfo, "entity")) {
 						OpenObjectEntitiesMenu(param1, Action_Edit);
@@ -338,7 +335,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 
 void OpenObjectEditorMenu(int client, int id) {
 	Menu menu = new Menu(MenuHandler_ObjectEditor, MENU_ACTIONS_ALL);
-	menu.SetTitle("Object Editor for %s:\n - Targeted Object: %i", g_Tracks[id].name, g_EditingObj[client]);
+	menu.SetTitle("Object Editor for %s:\n - Targeted Object: %i", g_Tracks[id].name, g_FocusObj[client]);
 
 	menu.AddItem("add", "Add Object");
 	menu.AddItem("target", "Target Object");
@@ -378,7 +375,7 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "add")) {
-				g_EditingObj[param1] = g_Tracks[id].GetTotalObjects();
+				g_FocusObj[param1] = g_Tracks[id].GetTotalObjects();
 
 				float origin[3];
 				if (!GetClientCrosshairOrigin(param1, origin)) {
@@ -391,16 +388,16 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 				OpenAddObjectMenu(param1, Action_Edit);
 				return 0;
 			} else if (StrEqual(sInfo, "target")) {
-				g_EditingObj[param1] = GetNearestObj(param1, id);
+				g_FocusObj[param1] = GetNearestObj(param1, id);
 
-				if (g_EditingObj[param1] != NO_OBJECT) {
+				if (g_FocusObj[param1] != NO_OBJECT) {
 					PrintToClient(param1, "%T", "object targeted", param1);
 				} else {
 					PrintToClient(param1, "%T", "no object targeted", param1);
 				}
 
 			} else if (StrEqual(sInfo, "remove")) {
-				int obj = g_EditingObj[param1];
+				int obj = g_FocusObj[param1];
 
 				if (obj != NO_OBJECT) {
 					g_Tracks[id].DeleteObject(obj);
@@ -413,7 +410,7 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 				OpenObjectEntitiesMenu(param1, Action_Edit);
 				return 0;
 			} else if (StrEqual(sInfo, "origin")) {
-				int obj = g_EditingObj[param1];
+				int obj = g_FocusObj[param1];
 
 				if (obj != NO_OBJECT) {
 					float origin[3];
@@ -450,7 +447,7 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 			if (param2 == MenuCancel_ExitBack) {
 				OpenTrackEditorMenu(param1, id);
 			} else {
-				g_EditingObj[param1] = NO_OBJECT;
+				g_FocusObj[param1] = NO_OBJECT;
 				g_EditingTrack[param1] = NO_TRACK;
 			}
 		}
@@ -520,18 +517,16 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					g_CreatingTrack[param1].SetObjectEntity(obj, sEntity);
-
-					g_NewObjectEnt[param1].SetEntity(sEntity, ObjectType_Creating);
 
 					OpenObjectEntitiesMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					g_Tracks[id].SetObjectEntity(obj, sEntity);
 
@@ -560,7 +555,7 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingObj[param1] = NO_OBJECT;
+						g_FocusObj[param1] = NO_OBJECT;
 					}
 				}
 			}
@@ -607,7 +602,7 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					float angles[3];
 					g_CreatingTrack[param1].GetObjectAngles(obj, angles);
@@ -628,14 +623,12 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 
 					g_CreatingTrack[param1].SetObjectAngles(obj, angles);
 
-					g_NewObjectEnt[param1].SetAngles(angles);
-
 					OpenObjectAnglesMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (obj == NO_OBJECT) {
 						PrintToClient(param1, "%T", "no object selected", param1);
@@ -687,7 +680,7 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingObj[param1] = NO_OBJECT;
+						g_FocusObj[param1] = NO_OBJECT;
 					}
 				}
 			}
@@ -753,18 +746,16 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					g_CreatingTrack[param1].SetObjectModel(obj, sModel);
-
-					g_NewObjectEnt[param1].SetModel(sModel);
 
 					OpenObjectModelsMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (obj == NO_OBJECT) {
 						PrintToClient(param1, "%T", "no object selected", param1);
@@ -799,7 +790,7 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingObj[param1] = NO_OBJECT;
+						g_FocusObj[param1] = NO_OBJECT;
 					}
 				}
 			}
@@ -842,7 +833,7 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					float scale = g_CreatingTrack[param1].GetObjectScale(obj);
 
@@ -854,14 +845,12 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 
 					g_CreatingTrack[param1].SetObjectScale(obj, scale);
 
-					g_NewObjectEnt[param1].SetScale(scale);
-
 					OpenObjectScalesMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (obj == NO_OBJECT) {
 						PrintToClient(param1, "%T", "no object selected", param1);
@@ -908,7 +897,7 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingObj[param1] = NO_OBJECT;
+						g_FocusObj[param1] = NO_OBJECT;
 					}
 				}
 			}
@@ -959,18 +948,16 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					g_CreatingTrack[param1].SetObjectColor(obj, color);
-
-					g_NewObjectEnt[param1].SetColor(color);
 
 					OpenObjectColorsMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (obj == NO_OBJECT) {
 						PrintToClient(param1, "%T", "no object selected", param1);
@@ -1005,7 +992,7 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingObj[param1] = NO_OBJECT;
+						g_FocusObj[param1] = NO_OBJECT;
 					}
 				}
 			}
@@ -1026,7 +1013,7 @@ void OpenObjectSkinsMenu(int client, TrackAction action) {
 	bool survivors;
 	switch (action) {
 		case Action_Create: {
-			int obj = g_NewObj[client];
+			int obj = g_FocusObj[client];
 
 			char entity[64];
 			g_CreatingTrack[client].GetObjectEntity(obj, entity, sizeof(entity));
@@ -1036,7 +1023,7 @@ void OpenObjectSkinsMenu(int client, TrackAction action) {
 
 		case Action_Edit: {
 			int id = g_EditingTrack[client];
-			int obj = g_EditingObj[client];
+			int obj = g_FocusObj[client];
 
 			char entity[64];
 			g_Tracks[id].GetObjectEntity(obj, entity, sizeof(entity));
@@ -1090,18 +1077,16 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 
 			switch (trackaction) {
 				case Action_Create: {
-					int obj = g_NewObj[param1];
+					int obj = g_FocusObj[param1];
 
 					g_CreatingTrack[param1].SetObjectSkin(obj, skin);
-
-					g_NewObjectEnt[param1].SetSkin(skin);
 
 					OpenObjectSkinsMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int obj = g_EditingObj[param1];
+					int obj = g_FocusObj[param1];
 
 					if (obj == NO_OBJECT) {
 						PrintToClient(param1, "%T", "no object selected", param1);
@@ -1136,7 +1121,7 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingObj[param1] = NO_OBJECT;
+						g_FocusObj[param1] = NO_OBJECT;
 					}
 				}
 			}

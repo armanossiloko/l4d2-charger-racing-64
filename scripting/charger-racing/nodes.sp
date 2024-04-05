@@ -176,7 +176,7 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 	float origin[3]; char sColor[32];
 	switch (action) {
 		case Action_Create: {
-			node = g_NewNode[client];
+			node = g_FocusNode[client];
 
 			int color[4];
 			g_CreatingTrack[client].GetNode(node, origin, color);
@@ -186,7 +186,7 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 
 		case Action_Edit: {
 			int id = g_EditingTrack[client];
-			node = g_EditingNode[client];
+			node = g_FocusNode[client];
 
 			int color[4];
 			g_Tracks[id].GetNode(node, origin, color);
@@ -232,7 +232,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 
 			switch (trackaction) {
 				case Action_Create: {
-					int node = g_NewNode[param1];
+					int node = g_FocusNode[param1];
 					
 					if (StrEqual(sInfo, "position")) {
 						float origin[3]; origin = GetOrigin(param1, 10.0);
@@ -250,7 +250,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int node = g_EditingNode[param1];
+					int node = g_FocusNode[param1];
 
 					if (StrEqual(sInfo, "position")) {
 						float origin[3]; origin = GetOrigin(param1, 10.0);
@@ -286,7 +286,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 
 void OpenNodeEditorMenu(int client, int id) {
 	Menu menu = new Menu(MenuHandler_NodeEditor);
-	menu.SetTitle("Node Editor for %s:\n - Targeted Node: %i", g_Tracks[id].name, g_EditingNode[client]);
+	menu.SetTitle("Node Editor for %s:\n - Targeted Node: %i", g_Tracks[id].name, g_FocusNode[client]);
 
 	menu.AddItem("add", "Add Node");
 	menu.AddItem("target", "Target Node");
@@ -309,7 +309,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "add")) {
-				g_EditingNode[param1] = g_Tracks[id].GetTotalNodes();
+				g_FocusNode[param1] = g_Tracks[id].GetTotalNodes();
 
 				float origin[3]; origin = GetOrigin(param1, 10.0);
 
@@ -319,13 +319,13 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 				OpenAddNodeMenu(param1, Action_Edit);
 				return 0;
 			} else if (StrEqual(sInfo, "target")) {
-				g_EditingNode[param1] = GetNearestNode(param1, id);
+				g_FocusNode[param1] = GetNearestNode(param1, id);
 			} else if (StrEqual(sInfo, "remove")) {
-				int node = g_EditingNode[param1];
+				int node = g_FocusNode[param1];
 				g_Tracks[id].DeleteNode(node);
 			} else if (StrEqual(sInfo, "move")) {
 				float origin[3]; origin = GetOrigin(param1, 10.0);
-				g_Tracks[id].GetNodeOrigin(g_EditingNode[param1], origin);
+				g_Tracks[id].GetNodeOrigin(g_FocusNode[param1], origin);
 			} else if (StrEqual(sInfo, "color")) {
 				OpenNodeColorsMenu(param1, Action_Edit);
 				return 0;
@@ -338,7 +338,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 			if (param2 == MenuCancel_ExitBack) {
 				OpenTrackEditorMenu(param1, id);
 			} else {
-				g_EditingNode[param1] = NO_NODE;
+				g_FocusNode[param1] = NO_NODE;
 				g_EditingTrack[param1] = NO_TRACK;
 			}
 		}
@@ -412,14 +412,14 @@ public int MenuHandler_NodeColors(Menu menu, MenuAction action, int param1, int 
 
 			switch (trackaction) {
 				case Action_Create: {
-					int node = g_NewNode[param1];
+					int node = g_FocusNode[param1];
 					g_CreatingTrack[param1].SetNodeColor(node, color);
 					OpenAddNodeMenu(param1, trackaction);
 				}
 
 				case Action_Edit: {
 					int id = g_EditingTrack[param1];
-					int node = g_EditingNode[param1];
+					int node = g_FocusNode[param1];
 					g_Tracks[id].SetNodeColor(node, color);
 					OpenNodeEditorMenu(param1, id);
 				}
@@ -446,7 +446,7 @@ public int MenuHandler_NodeColors(Menu menu, MenuAction action, int param1, int 
 
 					case Action_Edit: {
 						g_EditingTrack[param1] = NO_TRACK;
-						g_EditingNode[param1] = NO_NODE;
+						g_FocusNode[param1] = NO_NODE;
 					}
 				}
 			}

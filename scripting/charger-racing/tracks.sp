@@ -442,7 +442,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				}
 
 			} else if (StrEqual(sInfo, "add_node")) {
-				g_NewNode[param1] = g_CreatingTrack[param1].GetTotalNodes();
+				g_FocusNode[param1] = g_CreatingTrack[param1].GetTotalNodes();
 
 				float origin[3]; origin = GetOrigin(param1, 10.0);
 
@@ -452,7 +452,7 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				OpenAddNodeMenu(param1, Action_Create);
 				return 0;
 			} else if (StrEqual(sInfo, "add_obj")) {
-				g_NewObj[param1] = g_CreatingTrack[param1].GetTotalObjects();
+				g_FocusObj[param1] = g_CreatingTrack[param1].GetTotalObjects();
 
 				float origin[3];
 				if (!GetClientCrosshairOrigin(param1, origin)) {
@@ -461,9 +461,6 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 
 				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH] = DEFAULT_OBJECT; float scale = 1.0; int color[4] = {255, 255, 255, 255}; int skin;
 				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);
-
-				g_NewObjectEnt[param1].Register(entity, origin, angles, model, scale, color, skin);
-				g_NewObjectEnt[param1].Create(ObjectType_Creating);
 
 				OpenAddObjectMenu(param1, Action_Create);
 				return 0;

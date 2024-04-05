@@ -107,12 +107,8 @@ Track g_CreatingTrack[MAXPLAYERS + 1];
 bool g_SettingName[MAXPLAYERS + 1];
 int g_EditingTrack[MAXPLAYERS + 1] = {NO_TRACK, ...};
 
-int g_NewNode[MAXPLAYERS + 1] = {NO_NODE, ...};
-int g_EditingNode[MAXPLAYERS + 1] = {NO_NODE, ...};
-
-int g_NewObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
-Object g_NewObjectEnt[MAXPLAYERS + 1];
-int g_EditingObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
+int g_FocusNode[MAXPLAYERS + 1] = {NO_NODE, ...};
+int g_FocusObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
 
 GameDataHandlers g_GameData;
 
@@ -347,9 +343,6 @@ public void OnPluginEnd() {
 		if (IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
 		}
-
-		g_NewObjectEnt[i].Delete();
-		g_NewObjectEnt[i].Clear();
 	}
 
 	ClearPathNodes();
@@ -549,7 +542,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			g_Tracks[track].GetNodeOrigin(i, origin);
 			g_Tracks[track].GetNode((i+1), origin2, color);
 
-			if (g_EditingNode[client] == i) {
+			if (g_FocusNode[client] == i) {
 				origin[2] += 25.0;
 				origin2[2] += 25.0;
 			}
@@ -917,8 +910,6 @@ public void OnClientDisconnect(int client) {
 	if (!IsPlayersAvailable()) {
 		g_State.None(2);
 	}
-
-	g_NewObjectEnt[client].Delete();
 }
 
 public void OnClientDisconnect_Post(int client) {
@@ -928,10 +919,8 @@ public void OnClientDisconnect_Post(int client) {
 
 	g_SettingName[client] = false;
 	g_EditingTrack[client] = NO_TRACK;
-	g_EditingNode[client] = NO_NODE;
-	g_EditingObj[client] = NO_OBJECT;
-
-	g_NewObjectEnt[client].Clear();
+	g_FocusNode[client] = NO_NODE;
+	g_FocusObj[client] = NO_OBJECT;
 }
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs) {
