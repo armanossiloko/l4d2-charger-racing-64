@@ -99,10 +99,11 @@ enum struct Player {
 
 				int total = GetTopScores(MaxClients, clients, scores);
 
-				char sTime[64];
+				char sTime[64]; int client;
 				for (int i = 0; i < total; i++) {
-					FormatSeconds((this.cache_time > 0) ? this.cache_time : this.GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], (g_Player[clients[i]].racing || g_Player[clients[i]].finished) ? sTime : " (00:00)");
+					client = clients[i];
+					FormatSeconds((g_Player[client].cache_time > 0) ? g_Player[client].cache_time : g_Player[client].GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, client, scores[i], (g_Player[client].racing || g_Player[client].finished) ? sTime : " (00:00)");
 				}
 			}
 
@@ -110,10 +111,11 @@ enum struct Player {
 				int clients[5]; int scores[5];
 				int total = GetTopScores(5, clients, scores);
 
-				char sTime[64];
+				char sTime[64]; int client;
 				for (int i = 0; i < total; i++) {
-					FormatSeconds((this.cache_time > 0) ? this.cache_time : this.GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
-					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, clients[i], scores[i], (g_Player[clients[i]].racing || g_Player[clients[i]].finished) ? sTime : " (00:00)");
+					client = clients[i];
+					FormatSeconds((g_Player[client].cache_time > 0) ? g_Player[client].cache_time : g_Player[client].GetTime(), sTime, sizeof(sTime), " (%M:%S)", true);
+					Format(sBuffer, sizeof(sBuffer), "%s#%i: %N (%i)%s\n", sBuffer, i + 1, client, scores[i], (g_Player[client].racing || g_Player[client].finished) ? sTime : " (00:00)");
 				}
 			}
 
