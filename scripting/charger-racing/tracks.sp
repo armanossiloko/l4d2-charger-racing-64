@@ -452,7 +452,8 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 				OpenAddNodeMenu(param1, Action_Create);
 				return 0;
 			} else if (StrEqual(sInfo, "add_obj")) {
-				g_FocusObj[param1] = g_CreatingTrack[param1].GetTotalObjects();
+				int obj = g_CreatingTrack[param1].GetTotalObjects();
+				g_FocusObj[param1] = obj;
 
 				float origin[3];
 				if (!GetClientCrosshairOrigin(param1, origin)) {
@@ -461,6 +462,9 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 
 				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH] = DEFAULT_OBJECT; float scale = 1.0; int color[4] = {255, 255, 255, 255}; int skin;
 				g_CreatingTrack[param1].AddObject(entity, origin, angles, model, scale, color, skin);
+
+				g_PlayerObject[param1][obj].Register(entity, origin, angles, model, scale, color, skin);
+				g_PlayerObject[param1][obj].Create(ObjectType_Creating);
 
 				OpenAddObjectMenu(param1, Action_Create);
 				return 0;
@@ -513,6 +517,7 @@ void SaveTrack(int client) {
 	g_CreatingTrack[client].Delete();
 
 	SaveTracks(g_TracksPath);
+	ClearPlayerObjects(client);
 }
 
 void OpenTracksMenu(int client, TrackAction action) {
@@ -560,7 +565,9 @@ public int MenuHandler_Tracks(Menu menu, MenuAction action, int param1, int para
 
 			switch (trackaction) {
 				case Action_Edit: {
-					OpenTrackEditorMenu(param1, id);
+					SpawnPlayerObjects(param1, id);
+					g_EditingTrack[param1] = id;
+					OpenTrackEditorMenu(param1);
 				}
 
 				case Action_Delete: {
@@ -590,6 +597,7 @@ void AskConfirmDeleteTrack(int client, int id) {
 
 	PushMenuInt(menu, "id", id);
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -658,8 +666,12 @@ bool DeleteTrack(int track) {
 	return true;
 }
 
-void OpenTrackEditorMenu(int client, int id) {
-	g_EditingTrack[client] = id;
+void OpenTrackEditorMenu(int client) {
+	int id = g_EditingTrack[client];
+
+	if (id == NO_TRACK) {
+		return;
+	}
 
 	Menu menu = new Menu(MenuHandler_TrackEditor, MENU_ACTIONS_ALL);
 	menu.SetTitle("Track Editor for %s:", g_Tracks[id].name);
@@ -671,6 +683,7 @@ void OpenTrackEditorMenu(int client, int id) {
 
 	PushMenuInt(menu, "id", id);
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -725,13 +738,14 @@ public int MenuHandler_TrackEditor(Menu menu, MenuAction action, int param1, int
 				return 0;
 			}
 
-			OpenTrackEditorMenu(param1, id);
+			OpenTrackEditorMenu(param1);
 		}
 		
 		case MenuAction_Cancel: {
 			if (param2 == MenuCancel_ExitBack) {
 				OpenTracksMenu(param1, Action_Edit);
 				g_EditingTrack[param1] = NO_TRACK;
+				ClearPlayerObjects(param1);
 			}
 		}
 
@@ -756,6 +770,7 @@ void AskConfirmSetTrack(int client, int id) {
 
 	PushMenuInt(menu, "id", id);
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }

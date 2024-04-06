@@ -212,6 +212,7 @@ void OpenAddNodeMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -296,6 +297,7 @@ void OpenNodeEditorMenu(int client, int id) {
 
 	PushMenuInt(menu, "id", id);
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -325,7 +327,7 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 				g_Tracks[id].DeleteNode(node);
 			} else if (StrEqual(sInfo, "move")) {
 				float origin[3]; origin = GetOrigin(param1, 10.0);
-				g_Tracks[id].GetNodeOrigin(g_FocusNode[param1], origin);
+				g_Tracks[id].SetNodeOrigin(g_FocusNode[param1], origin);
 			} else if (StrEqual(sInfo, "color")) {
 				OpenNodeColorsMenu(param1, Action_Edit);
 				return 0;
@@ -336,10 +338,11 @@ public int MenuHandler_NodeEditor(Menu menu, MenuAction action, int param1, int 
 		
 		case MenuAction_Cancel: {
 			if (param2 == MenuCancel_ExitBack) {
-				OpenTrackEditorMenu(param1, id);
+				OpenTrackEditorMenu(param1);
 			} else {
 				g_FocusNode[param1] = NO_NODE;
 				g_EditingTrack[param1] = NO_TRACK;
+				ClearPlayerObjects(param1);
 			}
 		}
 
@@ -389,6 +392,7 @@ void OpenNodeColorsMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -445,8 +449,9 @@ public int MenuHandler_NodeColors(Menu menu, MenuAction action, int param1, int 
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusNode[param1] = NO_NODE;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}

@@ -28,6 +28,7 @@
 #define NO_OBJECT -1 	//This is the corresponding index for data to know that this object either doesn't exist, is invalid, or is not set.
 #define DEFAULT_OBJECT "models/props_fortifications/orange_cone001_clientside.mdl"	//Default model to use for a model object when first created.
 #define MAX_MODELS 256	//Maximum amount of models allowed to be precached.
+#define MAX_OBJECTS 64	//Maximum amount of objects allowed to be spawned per player.
 
 //Precache the survivor models for use when spawning bot objects for charging.
 #define MODEL_FRANCIS "models/survivors/survivor_biker.mdl"
@@ -109,6 +110,8 @@ int g_EditingTrack[MAXPLAYERS + 1] = {NO_TRACK, ...};
 
 int g_FocusNode[MAXPLAYERS + 1] = {NO_NODE, ...};
 int g_FocusObj[MAXPLAYERS + 1] = {NO_OBJECT, ...};
+
+Object g_PlayerObject[MAXPLAYERS + 1][MAX_OBJECTS + 1];
 
 GameDataHandlers g_GameData;
 
@@ -343,6 +346,8 @@ public void OnPluginEnd() {
 		if (IsPlayerAlive(i)) {
 			SetEntityMoveType(i, MOVETYPE_WALK);
 		}
+
+		ClearPlayerObjects(i);
 	}
 
 	ClearPathNodes();
@@ -496,6 +501,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	float Amplitude = 0.0;
 	int Speed = 0;
 
+	//Rings
+	float start_radius = convar_Point_Start_Radius.FloatValue;
+	float end_radius = convar_Point_End_Radius.FloatValue;
+	int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
+
 	float pos[3]; pos = GetEyePosition(client);
 
 	float cull_distance = convar_Track_Culling.FloatValue;
@@ -508,11 +518,20 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float origin2[3];
 
 		for (int i = 0; i < length; i++) {
+			g_CreatingTrack[client].GetNodeOrigin(i, origin);
+
+			if (i == 0) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+				TE_SendToClient(client);
+			} else if (i == (length - 1)) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+				TE_SendToClient(client);
+			}
+
 			if ((i + 1) >= length) {
 				continue;
 			}
 
-			g_CreatingTrack[client].GetNodeOrigin(i, origin);
 			g_CreatingTrack[client].GetNode((i+1), origin2, color);
 
 			if (GetVectorDistance(pos, origin) > cull_distance || GetVectorDistance(pos, origin2) > cull_distance) {
@@ -535,11 +554,20 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		float origin2[3];
 
 		for (int i = 0; i < length; i++) {
+			g_Tracks[track].GetNodeOrigin(i, origin);
+
+			if (i == 0) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+				TE_SendToClient(client);
+			} else if (i == (length - 1)) {
+				TE_SetupBeamRingPoint(origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+				TE_SendToClient(client);
+			}
+
 			if ((i + 1) >= length) {
 				continue;
 			}
 
-			g_Tracks[track].GetNodeOrigin(i, origin);
 			g_Tracks[track].GetNode((i+1), origin2, color);
 
 			if (g_FocusNode[client] == i) {
@@ -564,10 +592,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	if (track == NO_TRACK) {
 		return Plugin_Continue;
 	}
-	
-	float start_radius = convar_Point_Start_Radius.FloatValue;
-	float end_radius = convar_Point_End_Radius.FloatValue;
-	int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
+
 	
 	//We want to mark the node that the player should be moving towards so the next node on the stack.
 	int i = g_Player[client].currentnode + 1;
@@ -935,7 +960,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 
 		if (track != NO_TRACK) {
 			strcopy(g_Tracks[track].name, sizeof(Track::name), sName);
-			OpenTrackEditorMenu(client, track);
+			OpenTrackEditorMenu(client);
 		} else {
 			strcopy(g_CreatingTrack[client].name, sizeof(Track::name), sName);
 			OpenCreateTrackMenu(client);

@@ -291,8 +291,10 @@ public Action Command_EditTrack(int client, int args) {
 			ReplyToClient(client, "%T", "track not found", client);
 			return Plugin_Handled;
 		}
-
-		OpenTrackEditorMenu(client, track);
+		
+		SpawnPlayerObjects(client, track);
+		g_EditingTrack[client] = track;
+		OpenTrackEditorMenu(client);
 
 		return Plugin_Handled;
 	}

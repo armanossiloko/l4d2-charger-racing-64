@@ -14,7 +14,7 @@ enum struct Object {
 	int color[4];
 	int skin;
 
-	int index;
+	int entindex;
 
 	void Register(const char[] entity, float origin[3], float angles[3], const char[] model, float scale, int color[4], int skin) {
 		strcopy(this.entity, sizeof(Object::entity), entity);
@@ -39,32 +39,38 @@ enum struct Object {
 	int Create(ObjectType type) {
 		this.Delete();
 
-		if (StrEqual(this.entity, "info_l4d1_survivor_spawn")) {
-			return this.index = SpawnSurvivor(this.origin, this.angles, this.skin, type);
-		} else {
-			this.index = CreateEntityByName(this.entity);
+		if (strlen(this.entity) == 0) {
+			return -1;
 		}
 
-		if (!IsValidEntity(this.index)) {
+		if (StrEqual(this.entity, "info_l4d1_survivor_spawn")) {
+			return this.entindex = SpawnSurvivor(this.origin, this.angles, this.skin, type);
+		} else {
+			this.entindex = CreateEntityByName(this.entity);
+		}
+
+		if (!IsValidEntity(this.entindex)) {
 			return -1;
 		}
 
 		if (strlen(this.model) == 0 && StrContains(this.entity, "prop_") == 0) {
-			DeleteEntity(this.index);
+			DeleteEntity(this.entindex);
 			return -1;
 		}
 
-		DispatchKeyValueVector(this.index, "origin", this.origin);
-		DispatchKeyValueVector(this.index, "angles", this.angles);
-		DispatchKeyValue(this.index, "model", this.model);
-		DispatchKeyValueFloat(this.index, "scale", this.scale);
-		DispatchKeyValue(this.index, "rendercolor", ParseColor(this.color));
-		DispatchKeyValueInt(this.index, "skin", this.skin);
+		DispatchKeyValueVector(this.entindex, "origin", this.origin);
+		DispatchKeyValueVector(this.entindex, "angles", this.angles);
+		DispatchKeyValue(this.entindex, "model", this.model);
+		DispatchKeyValueFloat(this.entindex, "scale", this.scale);
+		DispatchKeyValue(this.entindex, "rendercolor", ParseColor(this.color));
+		DispatchKeyValueInt(this.entindex, "skin", this.skin);
 
-		DispatchSpawn(this.index);
-		ActivateEntity(this.index);
+		DispatchSpawn(this.entindex);
+		ActivateEntity(this.entindex);
 
-		return this.index;
+		L4D2_SetEntityGlow(this.entindex, L4D2Glow_Constant, 0, 5, view_as<int>({255, 255, 255}), false);
+
+		return this.entindex;
 	}
 
 	void SetEntity(const char[] entity, ObjectType type) {
@@ -76,66 +82,66 @@ enum struct Object {
 	void SetOrigin(float origin[3]) {
 		this.origin = origin;
 		
-		if (IsValidEntity(this.index)) {
-			TeleportEntity(this.index, this.origin, NULL_VECTOR, NULL_VECTOR);
+		if (IsValidEntity(this.entindex)) {
+			TeleportEntity(this.entindex, this.origin, NULL_VECTOR, NULL_VECTOR);
 		}
 	}
 
 	void SetAngles(float angles[3]) {
 		this.angles = angles;
 		
-		if (IsValidEntity(this.index)) {
-			TeleportEntity(this.index, NULL_VECTOR, this.angles, NULL_VECTOR);
+		if (IsValidEntity(this.entindex)) {
+			TeleportEntity(this.entindex, NULL_VECTOR, this.angles, NULL_VECTOR);
 		}
 	}
 
 	void SetModel(const char[] model) {
 		strcopy(this.model, sizeof(Object::model), model);
 		
-		if (IsValidEntity(this.index)) {
-			SetEntityModel(this.index, this.model);
+		if (IsValidEntity(this.entindex)) {
+			SetEntityModel(this.entindex, this.model);
 		}
 	}
 
 	void SetScale(float scale) {
 		this.scale = scale;
 		
-		if (IsValidEntity(this.index)) {
-			SetEntPropFloat(this.index, Prop_Data, "m_flModelScale", this.scale);
+		if (IsValidEntity(this.entindex)) {
+			SetEntPropFloat(this.entindex, Prop_Data, "m_flModelScale", this.scale);
 		}
 	}
 
 	void SetColor(int color[4]) {
 		this.color = color;
 		
-		if (IsValidEntity(this.index)) {
-			SetEntityRenderColor(this.index, this.color[0], this.color[1], this.color[2], this.color[3]);
+		if (IsValidEntity(this.entindex)) {
+			SetEntityRenderColor(this.entindex, this.color[0], this.color[1], this.color[2], this.color[3]);
 		}
 	}
 
 	void SetSkin(int skin) {
 		this.skin = skin;
 		
-		if (IsValidEntity(this.index)) {
+		if (IsValidEntity(this.entindex)) {
 			if (StrEqual(this.entity, "info_l4d1_survivor_spawn", false)) {
 
 				if (this.skin >= 0 && this.skin <= 3) {
-					SetEntProp(this.index, Prop_Send, "m_survivorCharacter", this.skin + 4);
+					SetEntProp(this.entindex, Prop_Send, "m_survivorCharacter", this.skin + 4);
 				}
 
-				SetCharacter(this.index, this.skin);
+				SetCharacter(this.entindex, this.skin);
 			} else {
-				SetEntProp(this.index, Prop_Data, "m_nSkin", this.skin + 4);
+				SetEntProp(this.entindex, Prop_Data, "m_nSkin", this.skin + 4);
 			}
 		}
 	}
 
 	void Delete() {
-		if (IsValidEntity(this.index) && this.index > 0) {
-			DeleteEntity(this.index);
+		if (IsValidEntity(this.entindex) && this.entindex > 0) {
+			DeleteEntity(this.entindex);
 		}
 
-		this.index = 0;
+		this.entindex = 0;
 	}
 }
 
@@ -174,6 +180,7 @@ void OpenAddObjectMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -259,6 +266,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 							origin = GetOrigin(param1, 10.0);
 						}
 						g_CreatingTrack[param1].SetObjectOrigin(obj, origin);
+						g_PlayerObject[param1][obj].SetOrigin(origin);
 					} else if (StrEqual(sInfo, "angles")) {
 						OpenObjectAnglesMenu(param1, Action_Create);
 						return 0;
@@ -350,6 +358,7 @@ void OpenObjectEditorMenu(int client, int id) {
 
 	PushMenuInt(menu, "id", id);
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -375,7 +384,8 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "add")) {
-				g_FocusObj[param1] = g_Tracks[id].GetTotalObjects();
+				int obj = g_Tracks[id].GetTotalObjects();
+				g_FocusObj[param1] = obj;
 
 				float origin[3];
 				if (!GetClientCrosshairOrigin(param1, origin)) {
@@ -384,6 +394,9 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 
 				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
 				g_Tracks[id].AddObject(entity, origin, angles, model, scale, color, skin);
+
+				g_PlayerObject[param1][obj].Register(entity, origin, angles, model, scale, color, skin);
+				g_PlayerObject[param1][obj].Create(ObjectType_Editing);
 
 				OpenAddObjectMenu(param1, Action_Edit);
 				return 0;
@@ -401,6 +414,8 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 
 				if (obj != NO_OBJECT) {
 					g_Tracks[id].DeleteObject(obj);
+					g_PlayerObject[param1][obj].Delete();
+					g_FocusObj[param1] = NO_OBJECT;
 					PrintToClient(param1, "%T", "object removed", param1);
 				} else {
 					PrintToClient(param1, "%T", "no object selected", param1);
@@ -418,6 +433,7 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 						origin = GetOrigin(param1, 10.0);
 					}
 					g_Tracks[id].SetObjectOrigin(obj, origin);
+					g_PlayerObject[param1][obj].SetOrigin(origin);
 					PrintToClient(param1, "%T", "object origin updated", param1);
 				} else {
 					PrintToClient(param1, "%T", "no object selected", param1);
@@ -445,10 +461,11 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 		
 		case MenuAction_Cancel: {
 			if (param2 == MenuCancel_ExitBack) {
-				OpenTrackEditorMenu(param1, id);
+				OpenTrackEditorMenu(param1);
 			} else {
 				g_FocusObj[param1] = NO_OBJECT;
 				g_EditingTrack[param1] = NO_TRACK;
+				ClearPlayerObjects(param1);
 			}
 		}
 
@@ -497,6 +514,7 @@ void OpenObjectEntitiesMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -521,6 +539,8 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 
 					g_CreatingTrack[param1].SetObjectEntity(obj, sEntity);
 
+					g_PlayerObject[param1][obj].SetEntity(sEntity, ObjectType_Creating);
+
 					OpenObjectEntitiesMenu(param1, trackaction);
 				}
 
@@ -529,6 +549,8 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 					int obj = g_FocusObj[param1];
 
 					g_Tracks[id].SetObjectEntity(obj, sEntity);
+
+					g_PlayerObject[param1][obj].SetEntity(sEntity, ObjectType_Editing);
 
 					OpenObjectEditorMenu(param1, id);
 				}
@@ -554,8 +576,9 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusObj[param1] = NO_OBJECT;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}
@@ -582,6 +605,7 @@ void OpenObjectAnglesMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -623,6 +647,8 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 
 					g_CreatingTrack[param1].SetObjectAngles(obj, angles);
 
+					g_PlayerObject[param1][obj].SetAngles(angles);
+
 					OpenObjectAnglesMenu(param1, trackaction);
 				}
 
@@ -655,6 +681,8 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 
 					g_Tracks[id].SetObjectAngles(obj, angles);
 
+					g_PlayerObject[param1][obj].SetAngles(angles);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -679,8 +707,9 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusObj[param1] = NO_OBJECT;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}
@@ -720,6 +749,7 @@ void OpenObjectModelsMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -750,6 +780,8 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 
 					g_CreatingTrack[param1].SetObjectModel(obj, sModel);
 
+					g_PlayerObject[param1][obj].SetModel(sModel);
+
 					OpenObjectModelsMenu(param1, trackaction);
 				}
 
@@ -764,6 +796,8 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 					}
 
 					g_Tracks[id].SetObjectModel(obj, sModel);
+
+					g_PlayerObject[param1][obj].SetModel(sModel);
 
 					OpenObjectEditorMenu(param1, id);
 				}
@@ -789,8 +823,9 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusObj[param1] = NO_OBJECT;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}
@@ -813,6 +848,7 @@ void OpenObjectScalesMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -845,6 +881,8 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 
 					g_CreatingTrack[param1].SetObjectScale(obj, scale);
 
+					g_PlayerObject[param1][obj].SetScale(scale);
+
 					OpenObjectScalesMenu(param1, trackaction);
 				}
 
@@ -872,6 +910,8 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 
 					g_Tracks[id].SetObjectScale(obj, scale);
 
+					g_PlayerObject[param1][obj].SetScale(scale);
+
 					OpenObjectEditorMenu(param1, id);
 				}
 			}
@@ -896,8 +936,9 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusObj[param1] = NO_OBJECT;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}
@@ -925,6 +966,7 @@ void OpenObjectColorsMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -952,6 +994,8 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 
 					g_CreatingTrack[param1].SetObjectColor(obj, color);
 
+					g_PlayerObject[param1][obj].SetColor(color);
+
 					OpenObjectColorsMenu(param1, trackaction);
 				}
 
@@ -966,6 +1010,8 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 					}
 
 					g_Tracks[id].SetObjectColor(obj, color);
+
+					g_PlayerObject[param1][obj].SetColor(color);
 
 					OpenObjectEditorMenu(param1, id);
 				}
@@ -991,8 +1037,9 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusObj[param1] = NO_OBJECT;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}
@@ -1055,6 +1102,7 @@ void OpenObjectSkinsMenu(int client, TrackAction action) {
 
 	PushMenuInt(menu, "action", view_as<int>(action));
 
+	menu.ExitButton = false;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -1080,6 +1128,7 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 					int obj = g_FocusObj[param1];
 
 					g_CreatingTrack[param1].SetObjectSkin(obj, skin);
+					g_PlayerObject[param1][obj].SetSkin(skin);
 
 					OpenObjectSkinsMenu(param1, trackaction);
 				}
@@ -1095,6 +1144,7 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 					}
 
 					g_Tracks[id].SetObjectSkin(obj, skin);
+					g_PlayerObject[param1][obj].SetSkin(skin);
 
 					OpenObjectEditorMenu(param1, id);
 				}
@@ -1120,8 +1170,9 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 					}
 
 					case Action_Edit: {
-						g_EditingTrack[param1] = NO_TRACK;
 						g_FocusObj[param1] = NO_OBJECT;
+						g_EditingTrack[param1] = NO_TRACK;
+						ClearPlayerObjects(param1);
 					}
 				}
 			}
@@ -1213,6 +1264,8 @@ void CreateTrackObjects() {
 			DispatchSpawn(ent);
 			ActivateEntity(ent);
 
+			L4D2_SetEntityGlow(ent, L4D2Glow_Constant, 0, 5, view_as<int>({255, 255, 255}), false);
+
 			g_TrackObjects.Push(EntIndexToEntRef(ent));
 		}
 	}
@@ -1229,4 +1282,20 @@ void ClearTrackObjects() {
 	}
 
 	g_TrackObjects.Clear();
+}
+
+void SpawnPlayerObjects(int client, int id) {
+	char entity[64]; float origin[3]; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
+	for (int i = 0; i < g_Tracks[id].GetTotalObjects(); i++) {
+		g_Tracks[id].GetObject(i, entity, origin, angles, model, scale, color, skin);
+		g_PlayerObject[client][i].Register(entity, origin, angles, model, scale, color, skin);
+		g_PlayerObject[client][i].Create(ObjectType_Editing);
+	}
+}
+
+void ClearPlayerObjects(int client) {
+	for (int i = 0; i < MAX_OBJECTS; i++) {
+		g_PlayerObject[client][i].Delete();
+		g_PlayerObject[client][i].Clear();
+	}
 }
