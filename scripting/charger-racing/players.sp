@@ -94,9 +94,7 @@ enum struct Player {
 
 		switch (g_State.mode) {
 			case MODE_SINGLES: {
-				int[] clients = new int[MaxClients];
-				int[] scores = new int[MaxClients];
-
+				int[] clients = new int[MaxClients]; int[] scores = new int[MaxClients];
 				int total = GetTopScores(MaxClients, clients, scores);
 
 				char sTime[64]; int client;
@@ -108,7 +106,7 @@ enum struct Player {
 			}
 
 			case MODE_GROUPS: {
-				int clients[5]; int scores[5];
+				int[] clients = new int[MaxClients]; int[] scores = new int[MaxClients];
 				int total = GetTopScores(5, clients, scores);
 
 				char sTime[64]; int client;

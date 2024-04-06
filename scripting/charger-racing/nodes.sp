@@ -53,7 +53,7 @@ void IsNearNode(int client, int index) {
 		g_Player[client].speeds.Clear();
 
 		//If we're carrying a survivor when we reach a node, grab the multiplier for it and apply it to points gained.
-		points *= GetBotPointsMultiplier(client);
+		points = RoundToCeil(points * GetBotPointsMultiplier(client));
 
 		//Give the points and update the hud.
 		g_Player[client].AddPoints(points);
@@ -74,7 +74,7 @@ void IsNearFinish(int client) {
 	int points = g_Points.Get(g_State.mode, "finished");
 
 	//If we're carrying a bot and we hit the finish line then apply the multiplier for hitting the finish line.
-	points *= GetBotPointsMultiplier(client);
+	points = RoundToCeil(points * GetBotPointsMultiplier(client));
 
 	g_Player[client].AddPoints(points);
 	g_Player[client].Cache();
@@ -99,7 +99,7 @@ void IsNearFinish(int client) {
 					points = g_Points.Get(g_State.mode, "winner");
 
 					//If we're carrying a survivor then apply the multiplier to the points won as a single player.
-					points *= GetBotPointsMultiplier(winner);
+					points = RoundToCeil(points * GetBotPointsMultiplier(winner));
 					
 					g_Player[winner].AddPoints(points);
 					g_Player[winner].Cache();
@@ -138,7 +138,7 @@ void IsNearFinish(int client) {
 						}
 
 						//If we're carrying a survivor then apply the multiplier to the points won as a team.
-						temp *= GetBotPointsMultiplier(player);
+						temp = RoundToCeil(points * GetBotPointsMultiplier(player));
 
 						g_Player[player].AddPoints(temp);
 						g_Player[player].Cache();
