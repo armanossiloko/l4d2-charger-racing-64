@@ -1124,21 +1124,17 @@ stock float GetBotPointsMultiplier(int client) {
 	int bot = L4D2_GetSurvivorVictim(client);
 
 	if (!IsValidEntity(bot)) {
-		PrintToChat(client, "No bot found")
 		return 1.0;
 	}
 
 	switch (g_BotType[bot]) {
 		case BotType_Normal: {
-			PrintToChat(client, "Normal");
 			return 1.0;
 		}
 		case BotType_Buff: {
-			PrintToChat(client, "Buff");
 			return 1.20;
 		}
 		case BotType_Debuff: {
-			PrintToChat(client, "Debuff");
 			return 0.80;
 		}
 	}
