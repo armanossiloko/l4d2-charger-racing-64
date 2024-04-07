@@ -216,7 +216,7 @@ public Action Command_CreateTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	if (g_State.status != STATUS_PREPARING) { 
+	if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 		ReplyToClient(client, "%T", "must be in preparation phase", client);
 		return Plugin_Handled;
 	}
@@ -272,7 +272,7 @@ public Action Command_EditTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	if (g_State.status != STATUS_PREPARING) { 
+	if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 		ReplyToClient(client, "%T", "must be in preparation phase", client);
 		return Plugin_Handled;
 	}
@@ -565,17 +565,11 @@ public Action Command_Survivor(int client, int args) {
 		type = view_as<BotType>(StringToInt(sType));
 	}
 
-	int bot = SpawnSurvivor(origin, NULL_VECTOR, GetRandomInt(0, 7), ObjectType_Temporary);
-
-	if (!IsValidEntity(bot)) {
+	if (CreateTemporaryBot(origin, type)) {
+		PrintToClient(client, "%T", "spawned survivor", client);
+	} else {
 		PrintToClient(client, "%T", "failed to spawn survivor", client);
-		return Plugin_Handled;
 	}
-
-	g_BotType[bot] = type;
-	g_IsTemporarySurvivor[bot] = true;
-	
-	PrintToClient(client, "%T", "spawned survivor", client);
 
 	return Plugin_Handled;
 }
@@ -590,7 +584,8 @@ public Action Command_PrepareRace(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	g_State.Preparing(5);
+	g_State.Preparing();
+	PrintToClients("%t", "force start prepare", client);
 
 	return Plugin_Handled;
 }
