@@ -13,7 +13,7 @@
 #include <charger_racing>
 
 //Defines
-#define PLUGIN_VERSION "1.0.5"
+#define PLUGIN_VERSION "1.0.6"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -125,6 +125,7 @@ bool added[MAXPLAYERS + 1];
 int g_iLastSpawnClient;
 
 BotType g_BotType[MAXPLAYERS + 1];
+float g_BotOrigin[MAXPLAYERS + 1][3];
 bool g_IsTemporarySurvivor[MAXPLAYERS + 1];
 
 //Sub-Files
@@ -237,6 +238,7 @@ public void OnPluginStart() {
 	RegConsoleCmd2("sm_stats", Command_Stats, "Shows your current statistics.");
 	RegConsoleCmd2("sm_ready", Command_Ready, "Ready up to play the next match.");
 	RegConsoleCmd2("sm_race", Command_PrepareRace, "Starts the preparation phase manually.");
+	RegConsoleCmd2("sm_prepare", Command_PrepareRace, "Starts the preparation phase manually.");
 	RegConsoleCmd2("sm_preparerace", Command_PrepareRace, "Starts the preparation phase manually.");
 
 	//General Commands
@@ -297,7 +299,7 @@ public void OnPluginStart() {
 
 public void OnSQLConnect(Database db, const char[] error, any data) {
 	if (db == null) {
-		LogError("Error while connecting to database: %s\nConnecting to SQLite...", error);
+		LogMessage("Error while connecting to database: %s\nConnecting to SQLite...", error);
 
 		char sqerror[256];
 		db = SQLite_UseDatabase("l4d2-charger-racing", sqerror, sizeof(sqerror));
@@ -370,8 +372,12 @@ public void OnConfigsExecuted() {
 	FindConVar("z_charge_duration").IntValue = 99999;
 	FindConVar("z_common_limit").IntValue = 0;
 	FindConVar("director_no_bosses").BoolValue = true;
+	FindConVar("director_allow_infected_bots").BoolValue = false;
 	FindConVar("z_discard_min_range").IntValue = 99999;
 	FindConVar("z_discard_range").IntValue = 99999;
+	FindConVar("bot_freeze").BoolValue = true;
+	FindConVar("nb_player_move").BoolValue = true;
+	FindConVar("sb_l4d1_survivor_behavior").BoolValue = false;
 
 	char sParticle[64];
 	convar_Charging_Particle.GetString(sParticle, sizeof(sParticle));
@@ -409,8 +415,13 @@ public void OnConfigsExecuted() {
 		//Kick the bots on live load if there is any and set the state of the game to preparing.
 		DeleteBots();
 
-		//Start the preparing process automatically.
-		g_State.Preparing(2);
+		//Set the default process to be at on plugin live reload.
+		if (convar_NewRoundState.BoolValue) {
+			g_State.None();
+			PrintToClients("%t", "must prepare race manually");
+		} else {
+			g_State.Preparing();
+		}
 	}
 
 	L4D_LobbyUnreserve();
@@ -456,6 +467,28 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		return Plugin_Continue;
 	}
 
+	//Lines
+	int StartFrame = 0;
+	int FrameRate = 0;
+	float Life = 0.1;
+	float Width = convar_Pathing_Width.FloatValue;
+	float EndWidth = convar_Pathing_Width.FloatValue;
+	int FadeLength = 0;
+	float Amplitude = 0.0;
+	int Speed = 0;
+
+	//Rings
+	float start_radius = convar_Point_Start_Radius.FloatValue;
+	float end_radius = convar_Point_End_Radius.FloatValue;
+	int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
+
+	if (g_FocusObj[client] != NO_OBJECT) {
+		int obj = g_FocusObj[client];
+
+		TE_SetupBeamRingPoint(g_PlayerObject[client][obj].origin, start_radius, end_radius, g_ModelIndex, g_HaloIndex, StartFrame, FrameRate, Life, Width, Amplitude, current_color, Speed, 0);
+		TE_SendToClient(client);
+	}
+
 	//Make sure the player is alive, charging and is on the ground.
 	if (IsPlayerAlive(client) && g_Player[client].charging && GetEntProp(client, Prop_Send, "m_fFlags") & FL_ONGROUND) {
 		//Cache the original velocity to manipulate it or keep it consistent when charging.
@@ -492,22 +525,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vVel);
 	}
 
-	int StartFrame = 0;
-	int FrameRate = 0;
-	float Life = 0.1;
-	float Width = convar_Pathing_Width.FloatValue;
-	float EndWidth = convar_Pathing_Width.FloatValue;
-	int FadeLength = 0;
-	float Amplitude = 0.0;
-	int Speed = 0;
-
-	//Rings
-	float start_radius = convar_Point_Start_Radius.FloatValue;
-	float end_radius = convar_Point_End_Radius.FloatValue;
-	int current_color[4]; current_color = GetConVarColor(convar_Point_Current_Color);
-
 	float pos[3]; pos = GetEyePosition(client);
-
 	float cull_distance = convar_Track_Culling.FloatValue;
 
 	//Display the track as tempents to the player who's creating it.
@@ -592,7 +610,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	if (track == NO_TRACK) {
 		return Plugin_Continue;
 	}
-
 	
 	//We want to mark the node that the player should be moving towards so the next node on the stack.
 	int i = g_Player[client].currentnode + 1;
@@ -741,7 +758,7 @@ public Action Timer_Tick(Handle timer) {
 
 	//No players are available so set the Status of the mode to none and wait for players to join.
 	if (!IsPlayersAvailable()) {
-		g_State.None(1);
+		g_State.None();
 		return Plugin_Continue;
 	}
 
@@ -827,13 +844,13 @@ public Action Timer_Tick(Handle timer) {
 
 		switch (g_State.mode) {
 			case MODE_SINGLES, MODE_TEAMS: {
-				if (AllPlayersFinished()) {
+				if (g_State.IsFinished()) {
 					PrintToClients("%t", "race times up print");
 					//PrintHintTextToClients("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
-					EndRace(1);
+					g_State.EndRace();
 				} else {
-					g_State.PopQueue(true, 1);
+					g_State.PopQueue(true);
 				}
 			}
 
@@ -842,9 +859,9 @@ public Action Timer_Tick(Handle timer) {
 					PrintToClients("%t", "race times up print");
 					//PrintHintTextToClients("%s%t", PLUGIN_TAG_NOCOLOR, "race times up center");
 
-					EndRace(2);
+					g_State.EndRace();
 				} else {
-					g_State.PopQueue(true, 2);
+					g_State.PopQueue(true);
 				}
 			}
 		}
@@ -924,16 +941,16 @@ public void OnSyncPlayer(Database db, DBResultSet results, const char[] error, a
 public void OnClientDisconnect(int client) {
 	//Player disconnected from the game while racing so check if we need to pop queue or end the race since they're the last one.
 	if (IsClientInGame(client) && IsPlayerAlive(client) && !g_Player[client].playing && g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
-		if (AllPlayersFinished()) {
-			EndRace(3);
+		if (g_State.IsFinished()) {
+			g_State.EndRace();
 		} else {
-			g_State.PopQueue(true, 3);
+			g_State.PopQueue(true);
 		}
 	}
 
 	//Empty server so set the state to none.
 	if (!IsPlayersAvailable()) {
-		g_State.None(2);
+		g_State.None();
 	}
 }
 
@@ -979,16 +996,6 @@ public void OnEntityCreated(int entity, const char[] classname) {
 
 	if (StrEqual(classname, "infected")) {
 		SDKHook(entity, SDKHook_SpawnPost, OnInfectedSpawned);
-	}
-}
-
-public void OnEntityDestroyed(int entity) {
-	if (entity < 1) {
-		return;
-	}
-
-	if (entity < MaxClients) {
-		g_IsTemporarySurvivor[entity] = false;
 	}
 }
 
@@ -1038,10 +1045,10 @@ public void Frame_DelayFinish(any data) {
 
 public Action Timer_Prepare(Handle timer) {
 	if (convar_NewRoundState.BoolValue) {
-		g_State.None(3);
+		g_State.None();
 		PrintToClients("%t", "must prepare race manually");
 	} else {
-		g_State.Preparing(4);
+		g_State.Preparing();
 	}
 
 	return Plugin_Continue;
