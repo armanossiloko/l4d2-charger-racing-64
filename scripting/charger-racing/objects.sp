@@ -247,7 +247,7 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 			char sInfo[64];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -298,8 +298,12 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 						OpenObjectEntitiesMenu(param1, Action_Edit);
 						return 0;
 					} else if (StrEqual(sInfo, "origin")) {
-						float origin[3]; origin = GetOrigin(param1, 10.0);
+						float origin[3];
+						if (!GetClientCrosshairOrigin(param1, origin)) {
+							origin = GetOrigin(param1, 10.0);
+						}
 						g_Tracks[id].SetObjectOrigin(obj, origin);
+						g_PlayerObject[param1][obj].SetOrigin(origin);
 					} else if (StrEqual(sInfo, "angles")) {
 						OpenObjectAnglesMenu(param1, Action_Edit);
 						return 0;
@@ -342,19 +346,39 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 }
 
 void OpenObjectEditorMenu(int client, int id) {
+	int obj = g_FocusObj[client];
+
 	Menu menu = new Menu(MenuHandler_ObjectEditor, MENU_ACTIONS_ALL);
-	menu.SetTitle("Object Editor for %s:\n - Targeted Object: %i", g_Tracks[id].name, g_FocusObj[client]);
+	menu.SetTitle("Object Editor for %s:", g_Tracks[id].name);
 
 	menu.AddItem("add", "Add Object");
 	menu.AddItem("target", "Target Object");
-	menu.AddItem("remove", "Remove Object");
+	
+	if (obj != NO_OBJECT) {
+		menu.AddItem("remove", "Remove Object");
+	}
+
 	menu.AddItem("entity", "Set Object Entity");
 	menu.AddItem("origin", "Set Object Origin");
-	menu.AddItem("angles", "Set Object Angles");
-	menu.AddItem("model", "Set Object Model");
-	menu.AddItem("scale", "Set Object Scale");
+
+	if (obj != NO_OBJECT) {
+		char entity[64];
+		g_Tracks[id].GetObjectEntity(obj, entity, sizeof(entity));
+
+		if (StrContains(entity, "prop_") == 0) {
+			menu.AddItem("angles", "Set Object Angles");
+			menu.AddItem("model", "Set Object Model");
+			menu.AddItem("scale", "Set Object Scale");
+		}
+
+		if (StrEqual(entity, "info_l4d1_survivor_spawn")) {
+			menu.AddItem("skin", "Set Object Character");
+		} else {
+			menu.AddItem("skin", "Set Object Skin");
+		}
+	}
+
 	menu.AddItem("color", "Set Object Color");
-	menu.AddItem("skin", "Set Object Skin");
 
 	PushMenuInt(menu, "id", id);
 
@@ -392,13 +416,13 @@ public int MenuHandler_ObjectEditor(Menu menu, MenuAction action, int param1, in
 					origin = GetOrigin(param1, 10.0);
 				}
 
-				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH]; float scale; int color[4]; int skin;
+				char entity[64] = "info_l4d1_survivor_spawn"; float angles[3]; char model[PLATFORM_MAX_PATH] = DEFAULT_OBJECT; float scale; int color[4]; int skin;
 				g_Tracks[id].AddObject(entity, origin, angles, model, scale, color, skin);
 
 				g_PlayerObject[param1][obj].Register(entity, origin, angles, model, scale, color, skin);
 				g_PlayerObject[param1][obj].Create(ObjectType_Editing);
 
-				OpenAddObjectMenu(param1, Action_Edit);
+				OpenObjectEditorMenu(param1, id);
 				return 0;
 			} else if (StrEqual(sInfo, "target")) {
 				g_FocusObj[param1] = GetNearestObj(param1, id);
@@ -527,7 +551,7 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 			char sEntity[64];
 			menu.GetItem(param2, sEntity, sizeof(sEntity));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -552,7 +576,7 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 
 					g_PlayerObject[param1][obj].SetEntity(sEntity, ObjectType_Editing);
 
-					OpenObjectEditorMenu(param1, id);
+					OpenObjectEntitiesMenu(param1, trackaction);
 				}
 			}
 		}
@@ -618,7 +642,7 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -768,7 +792,7 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 			char sModel[PLATFORM_MAX_PATH];
 			menu.GetItem(param2, sModel, sizeof(sModel));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -861,7 +885,7 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -979,7 +1003,7 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 			char sColor[64];
 			menu.GetItem(param2, sColor, sizeof(sColor));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -1115,7 +1139,7 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 			char sSkin[16];
 			menu.GetItem(param2, sSkin, sizeof(sSkin));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -1213,9 +1237,8 @@ void CreateTrackObjects() {
 			g_Tracks[track].GetObject(i, entity, origin, angles, model, scale, color, skin);
 
 			if (StrEqual(entity, "info_l4d1_survivor_spawn", false)) {
-				//PrintToServer("Creating survivor %i: [Entity: %s] [Origin: %.2f/%.2f/%.2f] [Angles: %.2f/%.2f/%.2f] [Skin: %i]", i, entity, origin[0], origin[1], origin[2], angles[0], angles[1], angles[2], skin);
 				
-				int ent = SpawnSurvivor(origin, angles, skin, ObjectType_Active);				
+				int ent = SpawnSurvivor(origin, angles, skin, ObjectType_Active);
 
 				if (!IsValidEntity(ent)) {
 					continue;
