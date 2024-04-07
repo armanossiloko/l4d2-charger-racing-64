@@ -23,7 +23,7 @@ enum struct GameState {
 		this.group = 0;
 	}
 
-	void Preparing(int stage) {
+	void Preparing() {
 		this.status = STATUS_PREPARING;
 		g_API.Call_OnStatusChange(this.status);
 
@@ -38,7 +38,11 @@ enum struct GameState {
 		}
 
 		for (int i = 1; i <= MaxClients; i++) {
-			if (IsClientInGame(i)) {
+			g_BotType[i] = BotType_Normal;
+			g_BotOrigin[i] = NULL_VECTOR;
+			g_IsTemporarySurvivor[i] = false;
+
+			if (IsClientInGame(i) && !IsFakeClient(i)) {
 				if (g_Player[i].playing) {
 					L4D_ChangeClientTeam(i, L4DTeam_Infected);
 					L4D_RespawnPlayer(i);
@@ -85,8 +89,29 @@ enum struct GameState {
 			g_API.Call_OnPlayerStart(i);
 		}
 
-		g_State.PopQueue(true, 5);
+		g_State.PopQueue(true);
 		g_API.Call_OnStartRace();
+	}
+
+	void EndRace() {
+		if (this.status == STATUS_FINISHED) {
+			return;
+		}
+
+		PrintToClients("%t", "race finished print");
+
+		char sTime[64];
+		for (int i = 1; i <= MaxClients; i++) {
+			if (g_Player[i].playing) {
+				FormatSeconds(g_Player[i].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
+				PrintHintTextToClients("%T", "race finished with time center", i, sTime);
+			} else {
+				PrintHintTextToClients("%T", "race finished center", i);
+			}
+		}
+
+		g_State.Finish();
+		g_API.Call_OnEndRace();
 	}
 
 	void Ready() {
@@ -99,6 +124,7 @@ enum struct GameState {
 		ClearEntities(false);
 		CreatePathNodes();
 		CreateTrackObjects();
+		HandleTemporaryBots();
 	}
 
 	void Racing() {
@@ -122,6 +148,16 @@ enum struct GameState {
 			g_Player[i].cache_time = 0.0;
 			g_Player[i].racing = true;
 		}
+	}
+
+	bool IsFinished() {
+		for (int i = 1; i <= MaxClients; i++) {
+			if (g_Player[i].playing && !g_Player[i].finished && !IsFakeClient(i)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	void Finish() {
@@ -149,7 +185,7 @@ enum struct GameState {
 		}
 	}
 
-	void None(int stage) {
+	void None() {
 		this.status = STATUS_NONE;
 		g_API.Call_OnStatusChange(this.status);
 
@@ -212,10 +248,9 @@ enum struct GameState {
 		}
 	}
 
-	void PopQueue(bool ready, int debug2) {
-		PrintToServer("-------------------\n PopQueue: %i \n-------------------", debug2);		
+	void PopQueue(bool ready) {
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i)) {
+			if (!IsClientInGame(i) || IsFakeClient(i)) {
 				continue;
 			}
 
@@ -283,7 +318,7 @@ enum struct GameState {
 
 		//Teleport the players to the starting line and freeze them in place.
 		for (int i = 1; i <= MaxClients; i++) {
-			if (!IsClientInGame(i) || !IsPlayerAlive(i)) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || IsFakeClient(i)) {
 				continue;
 			}
 
@@ -442,7 +477,7 @@ bool SetStatus(Status status) {
 		}
 		case STATUS_PREPARING: {
 			if (g_State.status == STATUS_NONE) {
-				g_State.Preparing(1);
+				g_State.Preparing();
 				g_API.Call_OnStatusChange(g_State.status);
 				return true;
 			}
@@ -483,22 +518,4 @@ bool SetStatus(Status status) {
 	}
 
 	return false;
-}
-
-void EndRace(int debug2) {
-	PrintToServer("-------------------\n EndRace: %i \n-------------------", debug2);
-	PrintToClients("%t", "race finished print");
-
-	char sTime[64];
-	for (int i = 1; i <= MaxClients; i++) {
-		if (g_Player[i].playing) {
-			FormatSeconds(g_Player[i].GetTime(), sTime, sizeof(sTime), "%M:%S", true);
-			PrintHintTextToClients("%T", "race finished with time center", i, sTime);
-		} else {
-			PrintHintTextToClients("%T", "race finished center", i);
-		}
-	}
-
-	g_State.Finish();
-	g_API.Call_OnEndRace();
 }
