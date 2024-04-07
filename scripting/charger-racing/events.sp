@@ -42,8 +42,8 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
 
 	//If the state is currently set to none when the first player spawns on the server then start the preparation period.
-	if (g_State.status == STATUS_NONE) {
-		g_State.Preparing(3);
+	if (g_State.status == STATUS_NONE && !convar_NewRoundState.BoolValue) {
+		g_State.Preparing();
 	}
 
 	//If we have any available tracks on the map, just pick the 1st one.
@@ -60,7 +60,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	int userid = event.GetInt("userid");
 	int client = GetClientOfUserId(userid);
 
-	if (client < 1) {
+	if (client < 1 || IsFakeClient(client)) {
 		return;
 	}
 
@@ -71,15 +71,14 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	}
 
 	if (g_State.status == STATUS_RACING && (g_State.mode == MODE_SINGLES || g_State.mode == MODE_GROUPS)) {
-		
 		//If the player is racing but dies, move onto the next player then end the race.
 		g_Player[client].finished = true;
-		PrintToClients("%t", "finished the race", client);
+		//PrintToClients("%t", "finished the race", client);
 
-		if (AllPlayersFinished()) {
-			EndRace(4);
+		if (g_State.IsFinished()) {
+			g_State.EndRace();
 		} else {
-			g_State.PopQueue(true, 4);
+			g_State.PopQueue(true);
 		}
 	}
 }
