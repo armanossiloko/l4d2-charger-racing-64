@@ -119,7 +119,7 @@
 	"prepare post match"
 	{
 		"#format"	"{1:i}"
-		"en"	"Starting the preparation process in {olive}{1} {default}seconds..."
+		"en"	"Starting the next process in {olive}{1} {default}seconds..."
 	}
 
 	"added to slot queue"
@@ -166,6 +166,12 @@
 	{
 		"#format"	"{1:N},{2:s},{3:i}"
 		"en"	"{olive}{1} {default}has finished the race! (Time: {olive}{2} {default}| Score: {olive}{3}{default})"
+	}
+
+	"finished points gained"
+	{
+		"#format"	"{1:i},{2:i}"
+		"en"	"You have gained {olive}{1} {default}points for finishing the race. (Total: {olive}{2}{default})"
 	}
 
 	"no winner for player"
@@ -411,12 +417,18 @@
 
 	"must prepare race manually"
 	{
-		"en"	"Start the race by typing {olive}!preparerace {default}in chat."
+		"en"	"Start the race by typing {olive}!prepare {default}in chat."
 	}
 
 	"must have set number of ready players"
 	{
 		"#format"	"{1:i}"
 		"en"	"There must be at least {olive}{1} {default}players who are ready to start the race."
+	}
+
+	"force start prepare"
+	{
+		"#format"	"{1:N}"
+		"en"	"{olive}{1} {default}has started the preparation phase."
 	}
 }
