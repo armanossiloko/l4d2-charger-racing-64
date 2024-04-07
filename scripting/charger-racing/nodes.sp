@@ -76,19 +76,33 @@ void IsNearFinish(int client) {
 	//If we're carrying a bot and we hit the finish line then apply the multiplier for hitting the finish line.
 	points = RoundToCeil(points * GetBotPointsMultiplier(client));
 
+	//If they skipped all of the points, deduct based on them all and a percentage.
+	if (g_Player[client].currentnode == 0) {
+		int total = g_Tracks[g_State.track].GetTotalNodes() - 2;
+		points += (total * g_Points.Get(g_State.mode, "skipping-checkpoint"));
+	}
+
 	g_Player[client].AddPoints(points);
 	g_Player[client].Cache();
 
 	char sTime[32];
 	FormatSeconds(g_Player[client].cache_time, sTime, sizeof(sTime), "%M:%S", true);
 
+	PrintToClient(client, "%T", "finished points gained", client, points, g_Player[client].cache_points);
 	PrintToClients("%t", "finished the race", client, sTime, g_Player[client].cache_points);
 
 	if (convar_Death_On_Finish.BoolValue) {
 		ForcePlayerSuicide(client);
 	}
 
-	if (AllPlayersFinished()) {
+	if (g_State.IsFinished()) {
+		for (int i = 1; i <= MaxClients; i++) {
+			if (IsClientInGame(i) && IsPlayerAlive(i) && IsFakeClient(i)) {
+				L4D2_SetEntityGlow_Type(i, L4D2Glow_None);
+				ForcePlayerSuicide(i);
+			}
+		}
+
 		switch (g_State.mode) {
 			case MODE_SINGLES, MODE_GROUPS: {
 				int winner = GetWinnerForSingles();
@@ -96,17 +110,10 @@ void IsNearFinish(int client) {
 				if (winner == -1) {
 					PrintToClients("%t", "no winner for player");
 				} else {
-					points = g_Points.Get(g_State.mode, "winner");
-
-					//If we're carrying a survivor then apply the multiplier to the points won as a single player.
-					points = RoundToCeil(points * GetBotPointsMultiplier(winner));
-					
-					g_Player[winner].AddPoints(points);
-					g_Player[winner].Cache();
-
 					g_Player[winner].stats.wins++;
 					IncrementStat(winner, "wins");
 					
+					g_Player[winner].Cache();
 					PrintToClients("%t", "winner for player", winner, g_Player[winner].cache_points);
 
 					for (int i = 1; i <= MaxClients; i++) {
@@ -125,24 +132,16 @@ void IsNearFinish(int client) {
 				} else {
 					int[] players = new int[MaxClients];
 					g_Groups.GetGroupMembers(group, players);
-					
-					points = g_Points.Get(g_State.mode, "winner");
 
-					int total; int temp; int player;
+					int total; int player;
 					for (int i = 0; i < MaxClients; i++) {
-						temp = points;
 						player = players[i];
 
 						if (player < 1) {
 							continue;
 						}
 
-						//If we're carrying a survivor then apply the multiplier to the points won as a team.
-						temp = RoundToCeil(points * GetBotPointsMultiplier(player));
-
-						g_Player[player].AddPoints(temp);
 						g_Player[player].Cache();
-
 						total += g_Player[player].cache_points;
 
 						g_Player[player].stats.wins++;
@@ -166,7 +165,7 @@ void IsNearFinish(int client) {
 
 	} else {
 		if (g_State.mode == MODE_SINGLES || (g_State.mode == MODE_TEAMS && IsTeamFinished((g_State.group - 1)))) {
-			g_State.PopQueue(true, 6);
+			g_State.PopQueue(true);
 		}
 	}
 }
@@ -225,7 +224,7 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 			char sInfo[64];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
@@ -405,7 +404,7 @@ public int MenuHandler_NodeColors(Menu menu, MenuAction action, int param1, int 
 			char sColor[64];
 			menu.GetItem(param2, sColor, sizeof(sColor));
 
-			if (g_State.status != STATUS_PREPARING) { 
+			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
 				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
 				g_CreatingTrack[param1].Delete();
 				return 0;
