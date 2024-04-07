@@ -5,16 +5,16 @@ enum struct Points {
 		this.data = new StringMap();
 	}
 
-	void Set(Modes mode, const char[] key, int value) {
+	void Set(Modes mode, const char[] key, any value) {
 		char buffer[256];
 		FormatEx(buffer, sizeof(buffer), "%i-%s", mode, key);
 		this.data.SetValue(buffer, value);
 	}
 
-	int Get(Modes mode, const char[] key) {
+	any Get(Modes mode, const char[] key) {
 		char buffer[256];
 		FormatEx(buffer, sizeof(buffer), "%i-%s", mode, key);
-		int value;
+		any value;
 		this.data.GetValue(buffer, value);
 		return value;
 	}
@@ -42,10 +42,14 @@ void ParsePoints(const char[] file) {
 			}
 
 			if (kv.GotoFirstSubKey(false)) {
-				char key[64]; int value;
+				char key[64]; any value;
 				do {
 					kv.GetSectionName(key, sizeof(key));
-					value = kv.GetNum(NULL_STRING);
+					if (kv.GetDataType(NULL_STRING) == KvData_Float) {
+						value = kv.GetFloat(NULL_STRING);
+					} else {
+						value = kv.GetNum(NULL_STRING);
+					}
 					g_Points.Set(index, key, value);
 					total++;
 				} while (kv.GotoNextKey(false));
