@@ -23,7 +23,6 @@
                 "-i${workspaceFolder}\\scripting",
                 "-i${workspaceFolder}\\include",
                 "-o${workspaceFolder}\\plugins\\l4d2-charger-racing.smx"
-                // "-oD:\\servers\\l4d2\\serverfiles\\left4dead2\\addons\\sourcemod\\plugins\\l4d2-charger-racing.smx"
             ],
 
             "group": {

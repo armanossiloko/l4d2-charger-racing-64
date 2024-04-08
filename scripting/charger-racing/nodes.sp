@@ -133,7 +133,8 @@ void IsNearFinish(int client) {
 					int[] players = new int[MaxClients];
 					g_Groups.GetGroupMembers(group, players);
 
-					int total; int player;
+					int total; int player; float[] times = new float[MaxClients];
+					int count;
 					for (int i = 0; i < MaxClients; i++) {
 						player = players[i];
 
@@ -143,10 +144,27 @@ void IsNearFinish(int client) {
 
 						g_Player[player].Cache();
 						total += g_Player[player].cache_points;
+						times[player] = g_Player[player].cache_time;
+
+						if (times[player] > 0.0) {
+							count++;
+						}
 
 						g_Player[player].stats.wins++;
 						IncrementStat(player, "wins");
 					}
+
+					float time;
+					for (int i = 0; i < MaxClients; i++) {
+						time += times[i];
+					}
+
+					if (count > 0) {
+						time /= count;
+					}
+
+					char sAverageTime[64];
+					FormatSeconds(time, sAverageTime, sizeof(sAverageTime), "%M:%S", true);
 
 					for (int i = 1; i <= MaxClients; i++) {
 						if (IsClientAuthorized(i) && FindValueInADTArray(players, MaxClients, i) == -1) {
@@ -155,7 +173,7 @@ void IsNearFinish(int client) {
 						}
 					}
 
-					PrintToClients("%t", "winner for team", group, total);
+					PrintToClients("%t", "winner for team", (group + 1), total, sAverageTime);
 				}
 			}
 		}
@@ -223,12 +241,6 @@ public int MenuHandler_AddNode(Menu menu, MenuAction action, int param1, int par
 		case MenuAction_Select: {
 			char sInfo[64];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
-
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
 
 			switch (trackaction) {
 				case Action_Create: {
@@ -403,12 +415,6 @@ public int MenuHandler_NodeColors(Menu menu, MenuAction action, int param1, int 
 		case MenuAction_Select: {
 			char sColor[64];
 			menu.GetItem(param2, sColor, sizeof(sColor));
-
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
 
 			int color[4];
 			StringToColor(sColor, color);

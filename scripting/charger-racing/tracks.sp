@@ -424,12 +424,6 @@ public int MenuHandler_CreateTrack(Menu menu, MenuAction action, int param1, int
 			char sInfo[64];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
-
 			if (StrEqual(sInfo, "name")) {
 				g_SettingName[param1] = true;
 				PrintToClient(param1, "%T", "editor enter a track name", param1);
@@ -611,11 +605,6 @@ public int MenuHandler_AskConfirmDeleteTrack(Menu menu, MenuAction action, int p
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			if (StrEqual(sInfo, "Yes")) {
-				if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING && g_State.track == id) { 
-					ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-					return 0;
-				}
-
 				if (DeleteTrack(id)) {
 					PrintToClient(param1, "%T", "track deleted", param1);
 					ParseTracks(g_TracksPath);

@@ -110,10 +110,10 @@ public Action Command_Track(int client, int args) {
 	if (g_State.track != NO_TRACK) {
 		strcopy(name, sizeof(name), g_Tracks[g_State.track].name);
 	} else {
-		strcopy(name, sizeof(name), "none");
+		strcopy(name, sizeof(name), "None");
 	}
 
-	ReplyToClient(client, "Track '%i/%i' is currently set to: %s", g_State.track, g_TotalTracks, name);
+	ReplyToClient(client, "Track {olive}%i/%i{default} is currently set to: {olive}%s", (g_State.track + 1), g_TotalTracks, name);
 
 	return Plugin_Handled;
 }
@@ -184,8 +184,8 @@ public Action Command_ReloadTracks(int client, int args) {
 		return Plugin_Continue;
 	}
 
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 
@@ -216,8 +216,8 @@ public Action Command_CreateTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 
@@ -234,6 +234,11 @@ public Action Command_DeleteTrack(int client, int args) {
 
 	if (client < 1) {
 		ReplyToClient(client, "%T", "Command is in-game only", client);
+		return Plugin_Handled;
+	}
+
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 
@@ -272,8 +277,8 @@ public Action Command_EditTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 
@@ -314,8 +319,8 @@ public Action Command_SetTrack(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 
@@ -342,37 +347,18 @@ public Action Command_StartRace(int client, int args) {
 		return Plugin_Continue;
 	}
 
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 
-	int ready = GetReadyPlayers();
-	int total = GetTotalPlayers();
+	if (g_State.status == STATUS_NONE) {
+		g_State.Preparing();
+	}
 
-	switch (g_State.mode) {
-		case MODE_SINGLES, MODE_TEAMS: {
-			if (client > 0 && IsClientInGame(client) && IsPlayerAlive(client) && total == 1 && ready == 0) {
-				g_Player[client].ready = true;
-				ready++;
-			}
-
-			if (ready < 1) {
-				ReplyToClient(client, "%T", "must have set number of ready players", client, 1);
-				return Plugin_Handled;
-			}
-		}
-
-		case MODE_GROUPS, MODE_GROUPTEAMS: {
-			if (client > 0 && IsClientInGame(client) && IsPlayerAlive(client) && total == 2 && ready == 1 && !g_Player[client].ready) {
-				g_Player[client].ready = true;
-				ready++;
-			}
-
-			if (ready < 2) {
-				ReplyToClient(client, "%T", "must have set number of ready players", client, 2);
-				return Plugin_Handled;
-			}
+	for (int i = 1; i <= MaxClients; i++) {
+		if (IsClientInGame(i) && IsPlayerAlive(i) && L4D_GetClientTeam(i) == L4DTeam_Infected) {
+			g_Player[i].ready = true;
 		}
 	}
 
@@ -410,8 +396,8 @@ public Action Command_SetMode(int client, int args) {
 		return Plugin_Handled;
 	}
 
-	if (g_State.status != STATUS_PREPARING) { 
-		ReplyToClient(client, "%T", "must be in preparation phase", client);
+	if (IsRaceActive()) {
+		ReplyToClient(client, "%T", "must be in nonactive phase", client);
 		return Plugin_Handled;
 	}
 

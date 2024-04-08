@@ -104,8 +104,6 @@ bool HasGroup(int client) {
 }
 
 bool IsTeamFinished(int group) {
-	PrintToChatAll("IsTeamFinished = %i", group);
-
 	int[] players = new int[MaxClients];
 	g_Groups.GetGroupMembers(group, players);
 

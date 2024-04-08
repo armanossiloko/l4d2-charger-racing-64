@@ -192,8 +192,8 @@
 
 	"winner for team"
 	{
-		"#format"	"{1:i},{2:i}"
-		"en"	"Team {olive}{1} {default}has won the race with {olive}{2} {default}points."
+		"#format"	"{1:i},{2:i},{3:s}"
+		"en"	"Team {olive}{1} {default}has won the race with {olive}{2} {default}points with the average time {olive}{3}{default}."
 	}
 
 	"missing data while saving"
@@ -349,9 +349,19 @@
 		"en"	"Failed to set mode to {olive}{1}{default}: {olive}{2}"
 	}
 
+	"must be in waiting phase"
+	{
+		"en"	"This command is only allowed to be used during the waiting phase."
+	}
+
 	"must be in preparation phase"
 	{
 		"en"	"This command is only allowed to be used during the preparation phase."
+	}
+
+	"must be in nonactive phase"
+	{
+		"en"	"This command is only allowed to be used while races are inactive."
 	}
 
 	"ready toggle"
@@ -408,11 +418,6 @@
 	"failed to spawn survivor"
 	{
 		"en"	"Failed to spawn a temporary survivor."
-	}
-
-	"must be in waiting phase"
-	{
-		"en"	"This command is only allowed to be used during the waiting phase."
 	}
 
 	"must prepare race manually"

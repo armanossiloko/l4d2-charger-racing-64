@@ -28,27 +28,31 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 		PrintToClient(client, "%T", "type ready", client);
 	}
 
-	if (g_MapStarted) {
-		g_MapStarted = false;
-
-		for (int i = 1; i <= MaxClients; i++) {
-			if (IsClientInGame(i) && IsFakeClient(i)) {
-				KickClient(i);
-			}
-		}
-	}
-
 	g_Player[client].charging = false;
-	CreateTimer(2.0, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.1, Timer_DelaySpawn, userid, TIMER_FLAG_NO_MAPCHANGE);
 
 	//If the state is currently set to none when the first player spawns on the server then start the preparation period.
 	if (g_State.status == STATUS_NONE && !convar_NewRoundState.BoolValue) {
 		g_State.Preparing();
 	}
 
-	//If we have any available tracks on the map, just pick the 1st one.
-	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
-		SetTrack(0, false);
+	//Move the player to the infected team if they're not on there already while spawning into the map.
+	if (L4D_GetClientTeam(client) == L4DTeam_Survivor) {
+		L4D_ChangeClientTeam(client, L4DTeam_Infected);
+	}
+
+	//Respawn the player if they currently aren't alive but on a team.
+	if (!IsPlayerAlive(client)) {
+		L4D_RespawnPlayer(client);
+	}
+
+	//Make sure the player is a charger and no other type of zombie.
+	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
+		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
+	}
+
+	if (g_State.status != STATUS_READY && g_State.status != STATUS_RACING) {
+		TeleportToSurvivorPos(client);
 	}
 }
 

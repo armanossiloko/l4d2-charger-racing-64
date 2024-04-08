@@ -325,6 +325,8 @@ enum struct GameState {
 			if (teleport) {
 				TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 				LookAtPoint(i, origin2);
+			} else {
+				TeleportToSurvivorPos(i);
 			}
 
 			g_Player[i].currentnode = 0;
@@ -358,8 +360,8 @@ public int MenuHandler_Modes(Menu menu, MenuAction action, int param1, int param
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
+			if (IsRaceActive()) { 
+				ReplyToClient(param1, "%T", "must be in nonactive phase", param1);
 				return 0;
 			}
 
@@ -425,7 +427,7 @@ Response_SetMode SetMode(Modes mode) {
 		return AlreadySet;
 	}
 
-	if (g_State.status != STATUS_PREPARING) {
+	if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) {
 		return AlreadyActive;
 	}
 

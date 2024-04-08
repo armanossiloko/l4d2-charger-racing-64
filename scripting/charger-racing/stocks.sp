@@ -512,7 +512,7 @@ stock int GetWinnerForSingles() {
 			continue;
 		}
 
-		if (g_Player[i].cache_points > g_Player[winner].cache_points || (g_Player[i].cache_points == g_Player[winner].cache_points && g_Player[i].cache_time > time)) {
+		if (g_Player[i].cache_points > g_Player[winner].cache_points || (g_Player[i].cache_points == g_Player[winner].cache_points && g_Player[i].cache_time < time)) {
 			winner = i;
 			time = g_Player[i].cache_time;
 		}
@@ -531,6 +531,7 @@ stock int GetWinnerGroup() {
 
 	for (int group = 0; group < g_Groups.GetTotalGroups(); group++) {
 		points = 0;
+		time = 0.0;
 
 		for (int i = 1; i <= MaxClients; i++) {
 			if (!IsClientInGame(i) || !g_Groups.IsInGroup(group, i)) {
@@ -541,14 +542,14 @@ stock int GetWinnerGroup() {
 			time += g_Player[i].cache_time;
 		}
 
-		if (winner == 0) {
+		if (winner == -1) {
 			winner = group;
 			winnerpoints = points;
 			winnertime = time;
 			continue;
 		}
 
-		if (points > winnerpoints || (points == winnerpoints && time > winnertime)) {
+		if (points > winnerpoints || (points == winnerpoints && time < winnertime)) {
 			winner = group;
 			winnerpoints = points;
 			winnertime = time;
@@ -1197,4 +1198,20 @@ stock int CreateTemporaryBot(float origin[3], BotType type) {
 	g_IsTemporarySurvivor[bot] = true;
 
 	return bot;
+}
+
+stock void RespawnPlayers() {
+	for (int i = 1; i <= MaxClients; i++) {
+		if (!IsClientInGame(i) || IsFakeClient(i)) {
+			continue;
+		}
+
+		L4D_ChangeClientTeam(i, L4DTeam_Infected);
+		L4D2_SetPlayerZombieClass(i, L4D2ZombieClass_Charger);
+		L4D_RespawnPlayer(i);
+	}
+}
+
+stock IsRaceActive() {
+	return g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING && g_State.status != STATUS_FINISHED;
 }

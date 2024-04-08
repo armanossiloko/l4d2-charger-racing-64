@@ -247,12 +247,6 @@ public int MenuHandler_AddObject(Menu menu, MenuAction action, int param1, int p
 			char sInfo[64];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
-
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_FocusObj[param1];
@@ -551,12 +545,6 @@ public int MenuHandler_ObjectEntities(Menu menu, MenuAction action, int param1, 
 			char sEntity[64];
 			menu.GetItem(param2, sEntity, sizeof(sEntity));
 
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
-
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_FocusObj[param1];
@@ -641,12 +629,6 @@ public int MenuHandler_ObjectAngles(Menu menu, MenuAction action, int param1, in
 		case MenuAction_Select: {
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
-
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
 
 			switch (trackaction) {
 				case Action_Create: {
@@ -792,12 +774,6 @@ public int MenuHandler_ObjectModels(Menu menu, MenuAction action, int param1, in
 			char sModel[PLATFORM_MAX_PATH];
 			menu.GetItem(param2, sModel, sizeof(sModel));
 
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
-
 			switch (trackaction) {
 				case Action_Create: {
 					int obj = g_FocusObj[param1];
@@ -884,12 +860,6 @@ public int MenuHandler_ObjectScales(Menu menu, MenuAction action, int param1, in
 		case MenuAction_Select: {
 			char sInfo[16];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
-
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
 
 			switch (trackaction) {
 				case Action_Create: {
@@ -1002,12 +972,6 @@ public int MenuHandler_ObjectColors(Menu menu, MenuAction action, int param1, in
 		case MenuAction_Select: {
 			char sColor[64];
 			menu.GetItem(param2, sColor, sizeof(sColor));
-
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
 
 			int color[4];
 			StringToColor(sColor, color);
@@ -1138,12 +1102,6 @@ public int MenuHandler_ObjectSkins(Menu menu, MenuAction action, int param1, int
 		case MenuAction_Select: {
 			char sSkin[16];
 			menu.GetItem(param2, sSkin, sizeof(sSkin));
-
-			if (g_State.status != STATUS_NONE && g_State.status != STATUS_PREPARING) { 
-				ReplyToClient(param1, "%T", "must be in preparation phase", param1);
-				g_CreatingTrack[param1].Delete();
-				return 0;
-			}
 
 			int skin = StringToInt(sSkin);
 

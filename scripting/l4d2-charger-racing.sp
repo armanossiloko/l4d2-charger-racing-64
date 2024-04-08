@@ -13,7 +13,7 @@
 #include <charger_racing>
 
 //Defines
-#define PLUGIN_VERSION "1.0.6"
+#define PLUGIN_VERSION "1.1.1"
 //#define PLUGIN_TAG "{green}[Racing] {default}"
 //#define PLUGIN_TAG_NOCOLOR "[Racing] "
 
@@ -222,7 +222,7 @@ public void OnPluginStart() {
 	convar_Spawns_Infected.AddChangeHook(OnInfectedSpawnsChanged);
 
 	//Events
-	HookEvent("round_start", Event_OnRoundStart);
+	//HookEvent("round_start", Event_OnRoundStart);
 	HookEvent("player_spawn", Event_OnPlayerSpawn);
 	HookEvent("player_death", Event_OnPlayerDeath);
 	HookEvent("charger_charge_start", Event_OnChargeStart);
@@ -414,6 +414,8 @@ public void OnConfigsExecuted() {
 
 		//Kick the bots on live load if there is any and set the state of the game to preparing.
 		DeleteBots();
+
+		RespawnPlayers();
 
 		//Set the default process to be at on plugin live reload.
 		if (convar_NewRoundState.BoolValue) {
@@ -723,6 +725,21 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 		return Plugin_Stop;
 	}
 
+	if (g_MapStarted) {
+		g_MapStarted = false;
+
+		for (int i = 1; i <= MaxClients; i++) {
+			if (IsClientInGame(i) && IsFakeClient(i)) {
+				KickClient(i);
+			}
+		}
+	}
+
+	//If we have any available tracks on the map, just pick the 1st one.
+	if (g_TotalTracks > 0 && g_State.track == NO_TRACK) {
+		SetTrack(0, false);
+	}
+
 	//Move the player to the infected team if they're not on there already while spawning into the map.
 	if (L4D_GetClientTeam(client) == L4DTeam_Survivor) {
 		L4D_ChangeClientTeam(client, L4DTeam_Infected);
@@ -736,6 +753,10 @@ public Action Timer_DelaySpawn(Handle timer, any userid) {
 	//Make sure the player is a charger and no other type of zombie.
 	if (L4D2_GetPlayerZombieClass(client) != L4D2ZombieClass_Charger) {
 		L4D_SetClass(client, view_as<int>(L4D2ZombieClass_Charger));
+	}
+
+	if (g_State.status != STATUS_READY && g_State.status != STATUS_RACING) {
+		TeleportToSurvivorPos(client);
 	}
 
 	return Plugin_Stop;
@@ -1044,6 +1065,8 @@ public void Frame_DelayFinish(any data) {
 }
 
 public Action Timer_Prepare(Handle timer) {
+	RespawnPlayers();
+
 	if (convar_NewRoundState.BoolValue) {
 		g_State.None();
 		PrintToClients("%t", "must prepare race manually");
